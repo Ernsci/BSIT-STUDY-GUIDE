@@ -25,3 +25,29 @@ def upload_page(path, data):
 
 def download_page(path):
     return client().storage.from_(config.PAGES_BUCKET).download(path)
+
+
+def remove_original(path):
+    client().storage.from_(config.ORIGINALS_BUCKET).remove([path])
+
+
+def remove_pages(prefix):
+    sb = client().storage.from_(config.PAGES_BUCKET)
+    try:
+        items = sb.list(prefix)
+    except Exception:
+        return
+    paths = []
+    for item in items or []:
+        name = item.get("name")
+        if not name:
+            continue
+        if item.get("id"):
+            paths.append(f"{prefix}/{name}")
+        else:
+            sub = sb.list(f"{prefix}/{name}")
+            for sub_item in sub or []:
+                if sub_item.get("name"):
+                    paths.append(f"{prefix}/{name}/{sub_item['name']}")
+    if paths:
+        sb.remove(paths)

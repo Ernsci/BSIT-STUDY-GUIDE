@@ -39,6 +39,10 @@ def revoke_document(doc_id):
     client().table("documents").update({"status": "revoked"}).eq("id", doc_id).execute()
 
 
+def delete_document(doc_id):
+    client().table("documents").delete().eq("id", doc_id).execute()
+
+
 def create_access_request(document_id, visitor_name, ip=None):
     payload = {
         "document_id": document_id,

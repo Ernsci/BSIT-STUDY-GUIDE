@@ -75,6 +75,17 @@ def admin_revoke(doc_id: int, _: bool = Depends(require_admin)):
     return {"ok": True}
 
 
+@app.post("/api/admin/delete/{doc_id}")
+def admin_delete(doc_id: int, _: bool = Depends(require_admin)):
+    doc = db.get_document(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="document not found")
+    storage.remove_original(doc["original_path"])
+    storage.remove_pages(doc["token"])
+    db.delete_document(doc_id)
+    return {"ok": True}
+
+
 @app.post("/api/upload")
 def upload_document(document: UploadFile = File(...), _: bool = Depends(require_admin)):
     if not (document.filename or "").lower().endswith(".pdf"):

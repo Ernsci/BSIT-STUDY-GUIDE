@@ -13,6 +13,7 @@
   input[type=file] { width: 100%; padding: 10px; border: 1px dashed #d3dce6; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
   button { padding: 10px 18px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
   button.secondary { background: #e4e7eb; color: #1f2933; }
+  button.danger { background: #c0392b; }
   .msg { margin-top: 12px; font-size: 13px; color: #52606d; word-break: break-all; }
   .msg.good { color: #137333; }
   .msg.bad { color: #c0392b; }
@@ -105,13 +106,33 @@ async function loadDocs() {
         <div class="title">${d.title}</div>
         <div class="meta">${d.page_count} pages · link: ${link}</div>
       </div>
-      <div>${badge} ${d.status === 'active' ? '<button class="secondary" onclick="revoke(' + d.id + ')">Revoke</button>' : ''}</div>`;
+      <div>
+        ${badge}
+        <span id="actions-${d.id}">
+          ${d.status === 'active' ? '<button class="secondary" onclick="toggleActions(' + d.id + ')">Revoke</button>' : ''}
+        </span>
+        <span id="confirm-${d.id}" class="hidden">
+          <button class="secondary" onclick="disableDoc(${d.id})">Disable</button>
+          <button class="danger" onclick="deleteDoc(${d.id})">Delete</button>
+        </span>
+      </div>`;
     el.appendChild(row);
   }
 }
 
-async function revoke(id) {
+function toggleActions(id) {
+  document.getElementById('actions-' + id).classList.add('hidden');
+  document.getElementById('confirm-' + id).classList.remove('hidden');
+}
+
+async function disableDoc(id) {
   await fetch(`/api/admin/revoke/${id}`, { method: 'POST' });
+  loadDocs();
+}
+
+async function deleteDoc(id) {
+  if (!confirm('Permanently delete this document and all its data?')) return;
+  await fetch(`/api/admin/delete/${id}`, { method: 'POST' });
   loadDocs();
 }
 
