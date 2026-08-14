@@ -38,7 +38,10 @@ def answer_callback(callback_id, text):
 
 
 def set_webhook(url):
-    return _call("setWebhook", url=url)
+    params = {"url": url}
+    if config.TELEGRAM_WEBHOOK_SECRET:
+        params["secret_token"] = config.TELEGRAM_WEBHOOK_SECRET
+    return _call("setWebhook", **params)
 
 
 def get_updates(offset=0, timeout=25):
