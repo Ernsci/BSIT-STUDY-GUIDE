@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import BaseModel
 
@@ -15,6 +16,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 serializer = URLSafeSerializer(config.ADMIN_SECRET)
 
 app = FastAPI(title="Approval Documents")
+app.mount("/pdfjs", StaticFiles(directory=STATIC_DIR / "pdfjs"), name="pdfjs")
 
 
 def _now():
@@ -119,7 +121,7 @@ def request_status(token: str, request_id: int):
     pages = []
     if req["status"] == "approved" and req.get("pages_path"):
         pages = [f"/v/{token}/page/{request_id}/{n}" for n in range(1, doc["page_count"] + 1)]
-    return {"status": req["status"], "pages": pages}
+    return {"status": req["status"], "pages": pages, "pdf": f"/v/{token}/pdf/{request_id}" if req["status"] == "approved" else None}
 
 
 @app.get("/v/{token}/page/{request_id}/{page_number}")
@@ -141,6 +143,23 @@ def serve_page(token: str, request_id: int, page_number: int, request: Request):
     return Response(content=data, media_type="image/jpeg")
 
 
+@app.get("/v/{token}/pdf/{request_id}")
+def serve_pdf(token: str, request_id: int, request: Request):
+    doc = db.get_document_by_token(token)
+    if not doc:
+        raise HTTPException(status_code=404)
+    req = db.get_access_request(request_id)
+    if not req or req["document_id"] != doc["id"] or req["status"] != "approved":
+        raise HTTPException(status_code=403)
+    path = f"{req['pages_path']}/view.pdf"
+    data = storage.download_page(path)
+    try:
+        db.log_view(request_id, 0, request.client.host if request.client else None, request.headers.get("user-agent"))
+    except Exception:
+        pass
+    return Response(content=data, media_type="application/pdf")
+
+
 def _process_approval(req, doc, chat_id, message_id):
     try:
         original = storage.download_original(doc["original_path"])
@@ -149,6 +168,8 @@ def _process_approval(req, doc, chat_id, message_id):
         pages_path = f"{doc['token']}/{req['id']}"
         for index, page_data in enumerate(pages, start=1):
             storage.upload_page(f"{pages_path}/{index}.jpg", page_data)
+        view_pdf = renderer.render_pdf_to_pdf(original, lines)
+        storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path)
         telegram.edit_message(chat_id, message_id, f"Approved '{doc['title']}' for {req['visitor_name']}.")
     except Exception as exc:

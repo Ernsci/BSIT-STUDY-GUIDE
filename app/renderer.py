@@ -56,3 +56,22 @@ def render_pdf(data, lines, scale=2.2, quality=88):
     finally:
         pdf.close()
     return pages
+
+
+def render_pdf_to_pdf(data, lines, scale=2.2, quality=88):
+    pdf = pdfium.PdfDocument(data)
+    images = []
+    try:
+        for page in pdf:
+            bitmap = page.render(scale=scale)
+            img = bitmap.to_pil().convert("RGBA")
+            wm = _watermark_layer(img.size, lines, scale)
+            combined = Image.alpha_composite(img, wm).convert("RGB")
+            images.append(combined)
+    finally:
+        pdf.close()
+    if not images:
+        return b""
+    buf = io.BytesIO()
+    images[0].save(buf, format="PDF", save_all=True, append_images=images[1:], resolution=72.0)
+    return buf.getvalue()
