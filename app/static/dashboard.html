@@ -31,41 +31,44 @@
   .nav-links a:hover { color: var(--text); }
   .nav-links a.fb { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 
-  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 48px; }
 
   /* Hero */
-  .hero { text-align: center; padding: 24px 0 36px; }
-  .hero h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 800; letter-spacing: -1px; }
+  .hero { text-align: center; padding: 12px 0 20px; }
+  .hero h1 { font-size: clamp(20px, 4vw, 30px); font-weight: 800; letter-spacing: -.5px; }
   .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero p { color: var(--muted); font-size: 15px; margin-top: 10px; max-width: 520px; margin-left: auto; margin-right: auto; }
+  .hero p { color: var(--muted); font-size: 14px; margin-top: 8px; max-width: 480px; margin-left: auto; margin-right: auto; }
 
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
-  .panel + .panel { margin-top: 24px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .panel + .panel { margin-top: 16px; }
 
-  .acct { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-size: 14px; color: var(--muted); }
+  /* Auth panel is narrower and centered */
+  #authView { max-width: 420px; margin: 0 auto; }
+
+  .acct { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
   .acct .who { font-weight: 700; color: var(--text); }
-  .acct button { width: auto; padding: 7px 14px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+  .acct button { width: auto; padding: 6px 12px; font-size: 12px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
 
-  .tabs { display: flex; margin-bottom: 20px; background: var(--panel2); border-radius: 10px; padding: 4px; }
-  .tab { flex: 1; padding: 10px; background: transparent; color: var(--muted); border: 0; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .tabs { display: flex; margin-bottom: 14px; background: var(--panel2); border-radius: 10px; padding: 4px; }
+  .tab { flex: 1; padding: 8px; background: transparent; color: var(--muted); border: 0; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
   .tab.active { background: var(--accent); color: #fff; }
 
-  input[type=text], input[type=email], input[type=password] { width: 100%; padding: 13px 15px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 12px; outline: none; transition: border-color .15s; }
+  input[type=text], input[type=email], input[type=password] { width: 100%; padding: 11px 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 10px; outline: none; transition: border-color .15s; }
   input:focus { border-color: var(--accent); }
   input::placeholder { color: var(--muted); }
 
-  button { padding: 13px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; transition: opacity .15s; }
+  button { padding: 11px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%; transition: opacity .15s; }
   button:hover { opacity: .9; }
   button:disabled { opacity: .5; cursor: not-allowed; }
-  .status { margin-top: 14px; color: var(--muted); font-size: 14px; }
+  .status { margin-top: 10px; color: var(--muted); font-size: 13px; }
   .status.bad { color: var(--bad); }
 
   /* Docs */
-  .doc { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+  .doc { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); gap: 12px; }
   .doc:first-of-type { padding-top: 0; }
   .doc:last-of-type { border-bottom: 0; padding-bottom: 0; }
   .doc .title { font-weight: 700; font-size: 15px; }
-  .doc .meta { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .doc .meta { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .doc .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px; }
   .badge.approved { background: rgba(52,201,143,.15); color: var(--good); }
@@ -73,28 +76,40 @@
   .badge.declined { background: rgba(255,93,93,.15); color: var(--bad); }
   .badge.none { background: rgba(139,147,163,.15); color: var(--muted); }
 
-  .doc a.open { display: inline-block; padding: 9px 16px; font-size: 13px; border-radius: 9px; background: var(--good); color: #07130e; font-weight: 700; text-decoration: none; white-space: nowrap; }
-  .doc button.act { width: auto; padding: 9px 16px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
-  .doc button.wait { width: auto; padding: 9px 16px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); }
+  .doc a.open { display: inline-block; padding: 8px 14px; font-size: 13px; border-radius: 9px; background: var(--good); color: #07130e; font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .doc button.act { width: auto; padding: 8px 14px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+  .doc button.wait { width: auto; padding: 8px 14px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); }
   .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
-  .dlrow { margin-top: 8px; }
+  .dlrow { margin-top: 6px; }
   .dlrow a { color: var(--good); font-weight: 700; font-size: 12px; text-decoration: none; }
   .dlrow .act { padding: 6px 12px; font-size: 12px; }
 
   /* Contact */
-  .contact { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  .contact p { color: var(--muted); font-size: 14px; flex: 1; min-width: 220px; }
-  .contact a.cta { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 700; text-decoration: none; background: var(--panel2); border: 1px solid var(--border); color: var(--text); transition: all .15s; }
+  .contact { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .contact p { color: var(--muted); font-size: 13px; flex: 1; min-width: 220px; }
+  .contact a.cta { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; text-decoration: none; background: var(--panel2); border: 1px solid var(--border); color: var(--text); transition: all .15s; }
   .contact a.cta:hover { border-color: var(--accent); color: var(--accent); }
   .contact a.cta.fb { background: rgba(79,140,255,.12); border-color: rgba(79,140,255,.4); color: var(--accent); }
-  .contact a.cta svg { width: 18px; height: 18px; }
+  .contact a.cta svg { width: 17px; height: 17px; }
 
-  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; opacity: .7; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; opacity: .7; }
 
-  @media (max-width: 520px) {
-    .nav-inner { flex-direction: column; gap: 10px; }
-    .doc { flex-direction: column; align-items: flex-start; }
-    .doc .actions { align-self: flex-end; }
+  @media (max-width: 900px) {
+    .nav-inner { padding: 12px 16px; }
+    .wrap { padding: 16px 14px 40px; }
+    .panel { padding: 18px; }
+  }
+
+  @media (max-width: 640px) {
+    .nav-inner { flex-wrap: wrap; row-gap: 8px; }
+    .nav-links { gap: 14px; }
+    .nav-links a { font-size: 13px; }
+    .doc { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .doc .actions { align-self: stretch; justify-content: flex-end; }
+    .doc .actions .act, .doc .actions a.open { flex: 1; text-align: center; }
+    .contact { flex-direction: column; align-items: stretch; text-align: center; }
+    .contact a.cta { justify-content: center; }
+    #authView { max-width: 100%; }
   }
 </style>
 </head>
