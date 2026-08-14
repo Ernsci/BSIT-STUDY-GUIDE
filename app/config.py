@@ -12,6 +12,7 @@ def _get(name, default=""):
 SUPABASE_URL = _get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = _get("SUPABASE_SERVICE_KEY")
 TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = _get("TELEGRAM_CHAT_ID")
 ADMIN_PASSWORD = _get("ADMIN_PASSWORD", "changeme")
 ADMIN_SECRET = _get("ADMIN_SECRET", "changeme-secret")
 APP_BASE_URL = _get("APP_BASE_URL", "http://localhost:8000")

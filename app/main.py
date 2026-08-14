@@ -97,7 +97,7 @@ def new_request(body: RequestBody):
     if not name:
         raise HTTPException(status_code=400, detail="name required")
     req = db.create_access_request(doc["id"], name)
-    chat_id = db.get_owner_chat_id()
+    chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
         try:
             telegram.send_approval_request(chat_id, doc["title"], name, req["id"])
@@ -156,11 +156,15 @@ def _process_approval(req, doc, chat_id, message_id):
 
 def handle_update(update):
     message = update.get("message") or {}
-    chat_id = (message.get("chat") or {}).get("id")
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
     text = (message.get("text") or "").strip()
+
     if text == "/start" and chat_id is not None:
         db.set_owner_chat_id(chat_id)
-        telegram.send_text(chat_id, "You are registered as the document owner. New access requests will appear here.")
+        telegram.send_text(chat_id, "Registered as approval destination. New access requests will appear here.")
+    elif text == "/groupid" and chat_id is not None:
+        telegram.send_text(chat_id, f"Chat ID: {chat_id}")
 
     callback = update.get("callback_query")
     if not callback:
