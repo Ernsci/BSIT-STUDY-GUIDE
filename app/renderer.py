@@ -41,7 +41,7 @@ def _watermark_layer(size, lines, scale):
     return layer.rotate(28, expand=False)
 
 
-def render_pdf(data, lines, scale=1.8, quality=82):
+def render_pdf(data, lines, scale=2.2, quality=88):
     pdf = pdfium.PdfDocument(data)
     pages = []
     try:

@@ -16,7 +16,26 @@
   button:disabled { background: #9aa5b1; cursor: not-allowed; }
   .status { margin-top: 16px; color: #52606d; font-size: 14px; }
   .denied { margin-top: 16px; color: #c0392b; font-weight: 600; }
-  #pages img { width: 100%; display: block; margin: 0 0 12px; border: 1px solid #d3dce6; border-radius: 4px; background: #fff; }
+
+  .viewer { background: #3a3f44; padding: 20px 8px 40px; border-radius: 12px; margin-top: 16px; }
+  .page { max-width: 560px; margin: 0 auto 20px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.45); }
+  .page:last-child { margin-bottom: 0; }
+  .page img { width: 100%; display: block; }
+  .page-num { text-align: center; color: #c8cdd2; font-size: 12px; padding-top: 10px; }
+
+  .topbar { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .topbar .title { font-size: 15px; font-weight: 600; }
+  .topbar .zoom { display: flex; align-items: center; gap: 6px; }
+  .topbar button.z { width: auto; padding: 6px 12px; font-size: 14px; background: #e4e7eb; color: #1f2933; }
+  .topbar button.z:disabled { opacity: .4; }
+  .topbar .zval { min-width: 52px; text-align: center; font-size: 13px; color: #52606d; }
+
+  .loader { text-align: center; color: #c8cdd2; padding: 20px 0; font-size: 13px; }
+
+  @media (max-width: 480px) {
+    .viewer { padding: 12px 0 24px; }
+    .page { border-radius: 0; }
+  }
 </style>
 </head>
 <body>
@@ -28,14 +47,26 @@
     <button id="btn">Request access</button>
     <div class="status" id="status"></div>
   </div>
-  <div id="pages" style="display:none"></div>
+
+  <div id="viewerWrap" style="display:none">
+    <div class="topbar">
+      <div class="title" id="docTitle">Document</div>
+      <div class="zoom">
+        <button class="z" id="zoomOut">−</button>
+        <span class="zval" id="zoomVal">Fit</span>
+        <button class="z" id="zoomIn">+</button>
+      </div>
+    </div>
+    <div class="viewer" id="viewer">
+      <div class="loader" id="loading">Loading pages…</div>
+    </div>
+  </div>
 </div>
 <script>
 const token = location.pathname.split('/')[2];
 const nameEl = document.getElementById('name');
 const btn = document.getElementById('btn');
 const statusEl = document.getElementById('status');
-const pagesEl = document.getElementById('pages');
 let pollTimer = null;
 
 btn.onclick = async () => {
@@ -67,21 +98,63 @@ async function poll(requestId) {
     const data = await res.json();
     if (data.status === 'approved') {
       clearInterval(pollTimer);
-      document.querySelector('.card').style.display = 'none';
-      pagesEl.style.display = 'block';
-      pagesEl.innerHTML = '';
-      for (const url of data.pages) {
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = 'page';
-        pagesEl.appendChild(img);
-      }
+      showDocument(data.pages);
     } else if (data.status === 'declined') {
       clearInterval(pollTimer);
       statusEl.className = 'denied';
       statusEl.textContent = 'Access was declined by the owner.';
     }
   } catch (e) {}
+}
+
+let scale = 1;
+function showDocument(urls) {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('viewerWrap').style.display = 'block';
+  const viewer = document.getElementById('viewer');
+  const loading = document.getElementById('loading');
+  viewer.innerHTML = '';
+
+  const total = urls.length;
+  let loaded = 0;
+
+  urls.forEach((url, i) => {
+    const item = document.createElement('div');
+    item.className = 'page';
+    item.style.maxWidth = `${560 * scale}px`;
+
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.src = url;
+    img.alt = `Page ${i + 1}`;
+
+    img.addEventListener('load', () => {
+      loaded++;
+      if (loaded >= total && loading.parentNode) loading.remove();
+    });
+    img.addEventListener('error', () => {
+      loaded++;
+      if (loaded >= total && loading.parentNode) loading.remove();
+    });
+
+    const num = document.createElement('div');
+    num.className = 'page-num';
+    num.textContent = `${i + 1} / ${total}`;
+
+    item.appendChild(img);
+    item.appendChild(num);
+    viewer.appendChild(item);
+  });
+}
+
+document.getElementById('zoomIn').onclick = () => applyZoom(scale * 1.15);
+document.getElementById('zoomOut').onclick = () => applyZoom(scale / 1.15);
+
+function applyZoom(next) {
+  scale = Math.min(2.5, Math.max(0.5, next));
+  document.querySelectorAll('.page').forEach(p => p.style.maxWidth = `${560 * scale}px`);
+  document.getElementById('zoomVal').textContent = `${Math.round(scale * 100)}%`;
 }
 
 nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
