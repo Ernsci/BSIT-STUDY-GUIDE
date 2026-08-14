@@ -91,18 +91,19 @@ def upload_document(document: UploadFile = File(...), _: bool = Depends(require_
 
 
 @app.post("/api/request")
-def new_request(body: RequestBody):
+def new_request(body: RequestBody, request: Request):
     doc = db.get_document_by_token(body.token)
     if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404, detail="link not found or revoked")
     name = body.name.strip()[:120]
     if not name:
         raise HTTPException(status_code=400, detail="name required")
-    req = db.create_access_request(doc["id"], name)
+    client_ip = request.client.host if request.client else None
+    req = db.create_access_request(doc["id"], name, ip=client_ip)
     chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
         try:
-            result = telegram.send_approval_request(chat_id, doc["title"], name, req["id"])
+            result = telegram.send_approval_request(chat_id, doc["title"], name, req["id"], ip=client_ip or "")
             if not result.get("ok"):
                 print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
         except Exception as exc:
@@ -160,7 +161,7 @@ def serve_pdf(token: str, request_id: int, request: Request):
     return Response(content=data, media_type="application/pdf")
 
 
-def _process_approval(req, doc, chat_id, message_id):
+def _process_approval(req, doc, chat_id, message_id, decided_by):
     try:
         original = storage.download_original(doc["original_path"])
         lines = [doc["title"], f"Viewer: {req['visitor_name']}", _now()]
@@ -170,11 +171,21 @@ def _process_approval(req, doc, chat_id, message_id):
             storage.upload_page(f"{pages_path}/{index}.jpg", page_data)
         view_pdf = renderer.render_pdf_to_pdf(original, lines)
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
-        db.set_request_status(req["id"], "approved", pages_path)
-        telegram.edit_message(chat_id, message_id, f"Approved '{doc['title']}' for {req['visitor_name']}.")
+        db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
+        telegram.edit_message(
+            chat_id,
+            message_id,
+            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "approve", decided_by),
+            reply_markup={"inline_keyboard": []},
+        )
     except Exception as exc:
-        db.set_request_status(req["id"], "declined")
-        telegram.edit_message(chat_id, message_id, f"Approval failed: {exc}")
+        db.set_request_status(req["id"], "declined", decided_by=decided_by)
+        telegram.edit_message(
+            chat_id,
+            message_id,
+            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by),
+            reply_markup={"inline_keyboard": []},
+        )
 
 
 def handle_update(update):
@@ -201,13 +212,20 @@ def handle_update(update):
         telegram.edit_message(callback_chat_id, message_id, "Request not found.")
         return
     doc = db.get_document(req["document_id"])
+    user = callback.get("from") or {}
+    decided_by = " ".join(filter(None, [user.get("first_name"), user.get("last_name")])) or user.get("username") or "Unknown"
     if action == "approve":
         telegram.answer_callback(callback["id"], "Approving...")
-        threading.Thread(target=_process_approval, args=(req, doc, callback_chat_id, message_id), daemon=True).start()
+        threading.Thread(target=_process_approval, args=(req, doc, callback_chat_id, message_id, decided_by), daemon=True).start()
     else:
-        db.set_request_status(req["id"], "declined")
+        db.set_request_status(req["id"], "declined", decided_by=decided_by)
         telegram.answer_callback(callback["id"], "Declined")
-        telegram.edit_message(callback_chat_id, message_id, f"Declined '{doc['title']}' for {req['visitor_name']}.")
+        telegram.edit_message(
+            callback_chat_id,
+            message_id,
+            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by),
+            reply_markup={"inline_keyboard": []},
+        )
 
 
 @app.post("/api/telegram/webhook")

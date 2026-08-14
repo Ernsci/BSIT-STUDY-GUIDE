@@ -39,12 +39,15 @@ def revoke_document(doc_id):
     client().table("documents").update({"status": "revoked"}).eq("id", doc_id).execute()
 
 
-def create_access_request(document_id, visitor_name):
-    row = client().table("access_requests").insert({
+def create_access_request(document_id, visitor_name, ip=None):
+    payload = {
         "document_id": document_id,
         "visitor_name": visitor_name,
         "status": "pending",
-    }).execute().data[0]
+    }
+    if ip is not None:
+        payload["ip"] = ip
+    row = client().table("access_requests").insert(payload).execute().data[0]
     return row
 
 
@@ -53,10 +56,12 @@ def get_access_request(request_id):
     return data[0] if data else None
 
 
-def set_request_status(request_id, status, pages_path=None):
+def set_request_status(request_id, status, pages_path=None, decided_by=None):
     payload = {"status": status}
     if pages_path is not None:
         payload["pages_path"] = pages_path
+    if decided_by is not None:
+        payload["decided_by"] = decided_by
     client().table("access_requests").update(payload).eq("id", request_id).execute()
 
 

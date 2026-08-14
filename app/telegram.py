@@ -11,17 +11,44 @@ def _call(method, **params):
     return resp.json()
 
 
-def send_approval_request(chat_id, title, visitor_name, request_id):
+def send_approval_request(chat_id, title, visitor_name, request_id, ip=""):
     return _call(
         "sendMessage",
         chat_id=chat_id,
-        text=f"Access request for '{title}'\nFrom: {visitor_name}",
+        text=format_request(title, visitor_name, ip),
         reply_markup={
             "inline_keyboard": [[
-                {"text": "Approve", "callback_data": f"approve:{request_id}"},
-                {"text": "Decline", "callback_data": f"decline:{request_id}"},
+                {"text": "✅ Approve", "callback_data": f"approve:{request_id}"},
+                {"text": "❌ Decline", "callback_data": f"decline:{request_id}"},
             ]]
         },
+    )
+
+
+def format_request(title, name, ip=""):
+    ip = ip or "Unknown"
+    return (
+        f"📥 New Access Request\n"
+        f"─────────────\n"
+        f"👤 Name: {name}\n"
+        f"📄 File: {title}\n"
+        f"🌐 IP: {ip}"
+    )
+
+
+def format_decision(title, name, ip, action, by):
+    ip = ip or "Unknown"
+    if action == "approve":
+        head = "✅ Access Approved"
+    else:
+        head = "❌ Access Declined"
+    return (
+        f"{head}\n"
+        f"─────────────\n"
+        f"👤 Name: {name}\n"
+        f"📄 File: {title}\n"
+        f"🌐 IP: {ip}\n"
+        f"🖊️ By: {by}"
     )
 
 
@@ -29,8 +56,11 @@ def send_text(chat_id, text):
     return _call("sendMessage", chat_id=chat_id, text=text)
 
 
-def edit_message(chat_id, message_id, text):
-    return _call("editMessageText", chat_id=chat_id, message_id=message_id, text=text)
+def edit_message(chat_id, message_id, text, reply_markup=None):
+    params = {"chat_id": chat_id, "message_id": message_id, "text": text}
+    if reply_markup is not None:
+        params["reply_markup"] = reply_markup
+    return _call("editMessageText", **params)
 
 
 def answer_callback(callback_id, text):
