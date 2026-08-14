@@ -85,8 +85,9 @@
   .dlrow .act { padding: 6px 12px; font-size: 12px; }
 
   /* Contact */
-  .contact { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .contact p { color: var(--muted); font-size: 12px; flex: 1; min-width: 180px; margin: 0; }
+  #contact { max-width: 420px; margin: 16px auto 0; text-align: center; }
+  .contact { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .contact p { color: var(--muted); font-size: 12px; margin: 0 0 4px; }
   .contact a.cta { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; background: var(--panel2); border: 1px solid var(--border); color: var(--text); transition: all .15s; }
   .contact a.cta:hover { border-color: var(--accent); color: var(--accent); }
   .contact a.cta.fb { background: rgba(79,140,255,.12); border-color: rgba(79,140,255,.4); color: var(--accent); }
@@ -109,7 +110,7 @@
     .doc .actions .act, .doc .actions a.open { flex: 1; text-align: center; }
     .contact { flex-direction: column; align-items: stretch; text-align: center; }
     .contact a.cta { justify-content: center; }
-    #authView { max-width: 100%; }
+    #authView, #contact { max-width: 100%; }
   }
 </style>
 </head>
