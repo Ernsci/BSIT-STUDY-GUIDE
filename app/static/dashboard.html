@@ -57,6 +57,12 @@
   input:focus { border-color: var(--accent); }
   input::placeholder { color: var(--muted); }
 
+  .pw { position: relative; }
+  .pw input { padding-right: 44px; margin-bottom: 10px; }
+  .pw .eye { position: absolute; top: 0; right: 0; width: 40px; height: 42px; padding: 0; background: transparent; border: 0; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .pw .eye:hover { color: var(--accent); }
+  .pw .eye svg { width: 19px; height: 19px; }
+
   button { padding: 11px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; width: 100%; transition: opacity .15s; }
   button:hover { opacity: .9; }
   button:disabled { opacity: .5; cursor: not-allowed; }
@@ -142,13 +148,23 @@
       </div>
       <div id="loginPane">
         <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
-        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+        <div class="pw">
+          <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+          <button type="button" class="eye" onclick="togglePw('loginPassword', this)" aria-label="Show password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
         <button id="btnLogin">Log in</button>
       </div>
       <div id="registerPane" style="display:none">
         <input type="text" id="regName" placeholder="Your name" autocomplete="name">
         <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
-        <input type="password" id="regPassword" placeholder="Password (min 6 chars)" autocomplete="new-password">
+        <div class="pw">
+          <input type="password" id="regPassword" placeholder="Password (min 6 chars)" autocomplete="new-password">
+          <button type="button" class="eye" onclick="togglePw('regPassword', this)" aria-label="Show password">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
         <button id="btnRegister">Create account</button>
       </div>
       <div class="status" id="authStatus"></div>
@@ -199,6 +215,14 @@ fetch('/api/site').then(r => r.json()).then(s => {
   document.getElementById('contactFb').href = s.facebook_url;
   document.getElementById('contactEmail').href = 'mailto:' + s.owner_email;
 }).catch(() => {});
+
+function togglePw(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  btn.classList.toggle('on', show);
+}
 
 function switchTab(which) {
   document.getElementById('tabLogin').classList.toggle('active', which === 'login');
