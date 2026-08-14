@@ -44,8 +44,20 @@ def health():
 
 
 @app.get("/", response_class=FileResponse)
-def admin_page():
-    return FileResponse(STATIC_DIR / "admin.html")
+def dashboard_page():
+    return FileResponse(STATIC_DIR / "dashboard.html")
+
+
+@app.get("/api/documents")
+def public_documents():
+    return db.list_active_documents()
+
+
+@app.get(f"/{config.ADMIN_URL_PATH}")
+def admin_secret_page():
+    response = FileResponse(STATIC_DIR / "admin.html")
+    response.set_cookie("admin_session", serializer.dumps({"sub": "admin"}), httponly=True, max_age=60 * 60 * 24 * 30)
+    return response
 
 
 @app.get("/v/{token}", response_class=FileResponse)

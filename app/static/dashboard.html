@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documents</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  .sub { color: #52606d; font-size: 14px; margin: 0 0 20px; }
+  .doc { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #eef1f4; }
+  .doc:last-child { border-bottom: 0; }
+  .doc .title { font-weight: 600; font-size: 15px; }
+  .doc .meta { font-size: 12px; color: #7b8794; margin-top: 2px; }
+  button { padding: 10px 18px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .empty { color: #7b8794; font-size: 14px; padding: 12px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Documents</h1>
+    <p class="sub">Select a document and request access. The owner will approve it on their side.</p>
+    <div id="docs"></div>
+  </div>
+</div>
+<script>
+async function load() {
+  const el = document.getElementById('docs');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const res = await fetch('/api/documents');
+    const docs = await res.json();
+    el.innerHTML = '';
+    if (!docs.length) { el.innerHTML = '<div class="empty">No documents available yet.</div>'; return; }
+    for (const d of docs) {
+      const row = document.createElement('div');
+      row.className = 'doc';
+      row.innerHTML = `
+        <div>
+          <div class="title">${d.title}</div>
+          <div class="meta">${d.page_count} pages</div>
+        </div>
+        <button onclick="location.href='/v/${d.token}'">Request view</button>`;
+      el.appendChild(row);
+    }
+  } catch (e) {
+    el.innerHTML = '<div class="empty">Could not load documents.</div>';
+  }
+}
+load();
+</script>
+</body>
+</html>

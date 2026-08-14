@@ -20,6 +20,8 @@ services:
         sync: false
       - key: ADMIN_SECRET
         sync: false
+      - key: ADMIN_URL_PATH
+        sync: false
       - key: APP_BASE_URL
         sync: false
       - key: TELEGRAM_POLLING

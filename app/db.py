@@ -35,6 +35,17 @@ def list_documents():
     return client().table("documents").select("*").order("id", desc=True).execute().data
 
 
+def list_active_documents():
+    return (
+        client().table("documents")
+        .select("id, token, title, page_count, status")
+        .eq("status", "active")
+        .order("id", desc=True)
+        .execute()
+        .data
+    )
+
+
 def revoke_document(doc_id):
     client().table("documents").update({"status": "revoked"}).eq("id", doc_id).execute()
 
