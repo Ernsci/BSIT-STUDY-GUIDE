@@ -289,6 +289,25 @@ def serve_download(token: str, request_id: int, request: Request):
     )
 
 
+@app.get("/api/my/status/{token}")
+def my_status(token: str, user: dict = Depends(require_user)):
+    doc = db.get_document_by_token(token)
+    if not doc or doc["status"] != "active":
+        raise HTTPException(status_code=404, detail="link not found or revoked")
+    view = db.get_latest_request(doc["id"], user["id"], "view", "approved")
+    dl = db.get_latest_request(doc["id"], user["id"], "download", "approved")
+    pending_view = db.get_latest_request(doc["id"], user["id"], "view", "pending")
+    pending_dl = db.get_latest_request(doc["id"], user["id"], "download", "pending")
+    return {
+        "view_approved": bool(view),
+        "view_pdf": f"/v/{token}/pdf/{view['id']}" if view else None,
+        "download_approved": bool(dl),
+        "download_url": f"/v/{token}/download/{dl['id']}" if dl else None,
+        "pending_view": pending_view["id"] if pending_view else None,
+        "pending_download": pending_dl["id"] if pending_dl else None,
+    }
+
+
 @app.get("/api/status/{token}/{request_id}")
 def request_status(token: str, request_id: int):
     doc = db.get_document_by_token(token)

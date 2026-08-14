@@ -141,7 +141,38 @@ function showAuthUI() {
     document.getElementById('acctName').textContent = auth.name;
     document.getElementById('btn').disabled = false;
     statusEl.textContent = '';
+    resumeIfApproved();
   }
+}
+
+async function resumeIfApproved() {
+  try {
+    const res = await fetch(`/api/my/status/${token}`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) return;
+    const s = await res.json();
+    if (s.view_approved && s.view_pdf) {
+      clearInterval(pollTimer);
+      showDocument(s.view_pdf, 0);
+      if (s.download_approved && s.download_url) {
+        document.getElementById('dlStatus').textContent = 'Your file is ready.';
+        document.getElementById('dlArea').innerHTML = `<a class="dl" href="${s.download_url}" download>Download PDF</a>`;
+      } else if (s.pending_download) {
+        document.getElementById('dlStatus').textContent = 'Waiting for owner approval to download…';
+        document.getElementById('dlArea').innerHTML = '<button class="dl" disabled>Waiting…</button>';
+        dlPollTimer = setInterval(() => pollDownload(s.pending_download), 4000);
+        pollDownload(s.pending_download);
+      } else {
+        renderDlButton();
+      }
+      return;
+    }
+    if (s.pending_view) {
+      statusEl.textContent = 'Waiting for the owner to approve your request...';
+      pollTimer = setInterval(() => poll(s.pending_view), 4000);
+      poll(s.pending_view);
+    }
+  } catch (e) {}
 }
 
 async function submitAuth(path, body) {

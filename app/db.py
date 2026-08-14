@@ -74,6 +74,22 @@ def get_access_request(request_id):
     return data[0] if data else None
 
 
+def get_latest_request(document_id, user_id, kind, status):
+    data = (
+        client().table("access_requests")
+        .select("*")
+        .eq("document_id", document_id)
+        .eq("user_id", user_id)
+        .eq("kind", kind)
+        .eq("status", status)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return data[0] if data else None
+
+
 def set_request_status(request_id, status, pages_path=None, decided_by=None):
     payload = {"status": status}
     if pages_path is not None:
