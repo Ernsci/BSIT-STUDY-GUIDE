@@ -26,6 +26,10 @@ services:
         value: "2"
       - key: ANTI_SPAM_MIN_SECONDS
         value: "60"
+      - key: OWNER_FACEBOOK_URL
+        sync: false
+      - key: OWNER_EMAIL
+        sync: false
       - key: APP_BASE_URL
         sync: false
       - key: TELEGRAM_POLLING

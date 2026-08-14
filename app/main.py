@@ -101,6 +101,15 @@ def health():
     return {"ok": True}
 
 
+@app.get("/api/site")
+def site_info():
+    return {
+        "site_name": "Documents for Nerds",
+        "facebook_url": config.OWNER_FACEBOOK_URL,
+        "owner_email": config.OWNER_EMAIL,
+    }
+
+
 @app.post("/api/register")
 def register(body: RegisterBody):
     name = body.name.strip()[:120]

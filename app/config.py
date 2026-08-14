@@ -18,6 +18,8 @@ ADMIN_SECRET = _get("ADMIN_SECRET", "changeme-secret")
 ADMIN_URL_PATH = _get("ADMIN_URL_PATH", "shshs").strip("/")
 ANTI_SPAM_MAX_PENDING = int(_get("ANTI_SPAM_MAX_PENDING", "2"))
 ANTI_SPAM_MIN_SECONDS = int(_get("ANTI_SPAM_MIN_SECONDS", "60"))
+OWNER_FACEBOOK_URL = _get("OWNER_FACEBOOK_URL", "https://facebook.com")
+OWNER_EMAIL = _get("OWNER_EMAIL", "owner@example.com")
 APP_BASE_URL = _get("APP_BASE_URL", "http://localhost:8000")
 TELEGRAM_POLLING = _get("TELEGRAM_POLLING", "0") == "1"
 TELEGRAM_WEBHOOK_SECRET = _get("TELEGRAM_WEBHOOK_SECRET", "")

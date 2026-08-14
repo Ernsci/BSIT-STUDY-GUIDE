@@ -3,55 +3,123 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BRION · Documents</title>
+<title>Documents for Nerds</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
-  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
-  .brand { font-size: 20px; font-weight: 700; letter-spacing: 1px; color: #1f2933; margin: 0 0 4px; }
-  .brand span { color: #1a73e8; }
-  .sub { color: #52606d; font-size: 14px; margin: 0 0 20px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #8b93a3;
+    --accent: #4f8cff;
+    --accent2: #7c5cff;
+    --good: #34c98f;
+    --warn: #f5b942;
+    --bad: #ff5d5d;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
 
-  .acct { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 14px; color: #52606d; }
-  .acct .who { font-weight: 600; color: #1f2933; }
-  .acct button { width: auto; padding: 6px 12px; font-size: 12px; background: #e4e7eb; color: #1f2933; }
+  /* Navbar */
+  .nav { background: rgba(15,17,21,.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .nav-inner { max-width: 900px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-size: 18px; font-weight: 800; letter-spacing: .5px; }
+  .logo .n { color: var(--accent); }
+  .nav-links { display: flex; align-items: center; gap: 20px; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; transition: color .15s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-links a.fb { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); }
 
-  .tabs { display: flex; margin-bottom: 16px; }
-  .tab { flex: 1; padding: 10px; background: #eef1f4; color: #52606d; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
-  .tab.active { background: #1a73e8; color: #fff; }
-  .tab + .tab { margin-left: 8px; }
-  input[type=text], input[type=email], input[type=password] { width: 100%; padding: 12px 14px; border: 1px solid #d3dce6; border-radius: 8px; font-size: 15px; margin-bottom: 12px; box-sizing: border-box; }
-  button { padding: 12px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; }
-  button:disabled { background: #9aa5b1; cursor: not-allowed; }
-  .status { margin-top: 14px; color: #52606d; font-size: 14px; }
-  .status.bad { color: #c0392b; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; }
 
-  .doc { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid #eef1f4; gap: 12px; }
-  .doc:last-child { border-bottom: 0; }
-  .doc .title { font-weight: 600; font-size: 15px; }
-  .doc .meta { font-size: 12px; color: #7b8794; margin-top: 2px; }
+  /* Hero */
+  .hero { text-align: center; padding: 24px 0 36px; }
+  .hero h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 800; letter-spacing: -1px; }
+  .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { color: var(--muted); font-size: 15px; margin-top: 10px; max-width: 520px; margin-left: auto; margin-right: auto; }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px; }
+  .panel + .panel { margin-top: 24px; }
+
+  .acct { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-size: 14px; color: var(--muted); }
+  .acct .who { font-weight: 700; color: var(--text); }
+  .acct button { width: auto; padding: 7px 14px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+
+  .tabs { display: flex; margin-bottom: 20px; background: var(--panel2); border-radius: 10px; padding: 4px; }
+  .tab { flex: 1; padding: 10px; background: transparent; color: var(--muted); border: 0; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  .tab.active { background: var(--accent); color: #fff; }
+
+  input[type=text], input[type=email], input[type=password] { width: 100%; padding: 13px 15px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 12px; outline: none; transition: border-color .15s; }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+
+  button { padding: 13px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; transition: opacity .15s; }
+  button:hover { opacity: .9; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { margin-top: 14px; color: var(--muted); font-size: 14px; }
+  .status.bad { color: var(--bad); }
+
+  /* Docs */
+  .doc { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+  .doc:first-of-type { padding-top: 0; }
+  .doc:last-of-type { border-bottom: 0; padding-bottom: 0; }
+  .doc .title { font-weight: 700; font-size: 15px; }
+  .doc .meta { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .doc .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px; }
-  .badge.approved { background: #e6f4ea; color: #137333; }
-  .badge.pending { background: #fef3cd; color: #8a6d00; }
-  .badge.declined { background: #fdecea; color: #c0392b; }
-  .badge.none { background: #eef1f4; color: #52606d; }
-  .doc a.open { display: inline-block; padding: 8px 14px; font-size: 13px; border-radius: 8px; background: #137333; color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap; }
-  .doc button.act { width: auto; padding: 8px 14px; font-size: 13px; }
-  .doc button.wait { width: auto; padding: 8px 14px; font-size: 13px; background: #e4e7eb; color: #1f2933; }
-  .empty { color: #7b8794; font-size: 14px; padding: 12px 0; }
-  .dlrow { margin-top: 6px; }
-  .dlrow a { color: #137333; font-weight: 600; font-size: 12px; text-decoration: none; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px; }
+  .badge.approved { background: rgba(52,201,143,.15); color: var(--good); }
+  .badge.pending { background: rgba(245,185,66,.15); color: var(--warn); }
+  .badge.declined { background: rgba(255,93,93,.15); color: var(--bad); }
+  .badge.none { background: rgba(139,147,163,.15); color: var(--muted); }
+
+  .doc a.open { display: inline-block; padding: 9px 16px; font-size: 13px; border-radius: 9px; background: var(--good); color: #07130e; font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .doc button.act { width: auto; padding: 9px 16px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+  .doc button.wait { width: auto; padding: 9px 16px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
+  .dlrow { margin-top: 8px; }
+  .dlrow a { color: var(--good); font-weight: 700; font-size: 12px; text-decoration: none; }
+  .dlrow .act { padding: 6px 12px; font-size: 12px; }
+
+  /* Contact */
+  .contact { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .contact p { color: var(--muted); font-size: 14px; flex: 1; min-width: 220px; }
+  .contact a.cta { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 700; text-decoration: none; background: var(--panel2); border: 1px solid var(--border); color: var(--text); transition: all .15s; }
+  .contact a.cta:hover { border-color: var(--accent); color: var(--accent); }
+  .contact a.cta.fb { background: rgba(79,140,255,.12); border-color: rgba(79,140,255,.4); color: var(--accent); }
+  .contact a.cta svg { width: 18px; height: 18px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 40px; opacity: .7; }
+
+  @media (max-width: 520px) {
+    .nav-inner { flex-direction: column; gap: 10px; }
+    .doc { flex-direction: column; align-items: flex-start; }
+    .doc .actions { align-self: flex-end; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
-    <div class="brand">BRION<span>.</span></div>
-    <p class="sub" id="headline">Log in or create an account to view documents.</p>
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="logo">📚 Documents for <span class="n">Nerds</span></div>
+      <nav class="nav-links">
+        <a href="#docs">Documents</a>
+        <a href="#contact">Contact</a>
+        <a class="fb" href="#" id="navFb" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg>
+          Facebook
+        </a>
+      </nav>
+    </div>
+  </header>
 
-    <div id="authView">
+  <div class="wrap">
+    <section class="hero">
+      <h1>Access-controlled docs, <span>approval-gated.</span></h1>
+      <p>Browse documents below. Each request is reviewed by the owner before you can view or download.</p>
+    </section>
+
+    <section class="panel" id="authView">
       <div class="tabs">
         <button class="tab active" id="tabLogin" onclick="switchTab('login')">Log in</button>
         <button class="tab" id="tabRegister" onclick="switchTab('register')">Create account</button>
@@ -68,17 +136,34 @@
         <button id="btnRegister">Create account</button>
       </div>
       <div class="status" id="authStatus"></div>
-    </div>
+    </section>
 
-    <div id="docsView" style="display:none">
+    <section class="panel" id="docsView" style="display:none">
       <div class="acct">
         <span>Signed in as <span class="who" id="acctName"></span></span>
         <button onclick="logout()">Log out</button>
       </div>
       <div id="docs"></div>
-    </div>
+    </section>
+
+    <section class="panel" id="contact">
+      <h2 style="font-size:18px; margin-bottom:8px;">Contact the owner</h2>
+      <div class="contact">
+        <p>Need help, spot a problem, or want access to something not listed? Reach out and the owner will get back to you.</p>
+        <a class="cta fb" href="#" id="contactFb" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg>
+          Message on Facebook
+        </a>
+        <a class="cta" href="#" id="contactEmail">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7L22 7"/></svg>
+          Email the owner
+        </a>
+      </div>
+    </section>
+
+    <footer>© <span id="year"></span> Documents for Nerds. All documents are watermarked and access-controlled.</footer>
   </div>
-</div>
+
 <script>
 const AUTH_KEY = 'brion_auth';
 
@@ -90,6 +175,14 @@ function authHeaders() {
   const auth = getAuth();
   return { 'Content-Type': 'application/json', ...(auth ? { Authorization: 'Bearer ' + auth.token } : {}) };
 }
+
+document.getElementById('year').textContent = new Date().getFullYear();
+
+fetch('/api/site').then(r => r.json()).then(s => {
+  document.getElementById('navFb').href = s.facebook_url;
+  document.getElementById('contactFb').href = s.facebook_url;
+  document.getElementById('contactEmail').href = 'mailto:' + s.owner_email;
+}).catch(() => {});
 
 function switchTab(which) {
   document.getElementById('tabLogin').classList.toggle('active', which === 'login');
