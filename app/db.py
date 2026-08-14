@@ -54,11 +54,12 @@ def delete_document(doc_id):
     client().table("documents").delete().eq("id", doc_id).execute()
 
 
-def create_access_request(document_id, visitor_name, ip=None):
+def create_access_request(document_id, visitor_name, ip=None, kind="view"):
     payload = {
         "document_id": document_id,
         "visitor_name": visitor_name,
         "status": "pending",
+        "kind": kind,
     }
     if ip is not None:
         payload["ip"] = ip

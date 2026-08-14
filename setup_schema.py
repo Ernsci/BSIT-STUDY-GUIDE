@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS access_requests (
     status TEXT NOT NULL DEFAULT 'pending',
     pages_path TEXT,
     ip TEXT,
+    kind TEXT NOT NULL DEFAULT 'view',
     decided_by TEXT,
     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     decided_at TIMESTAMPTZ
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS ip TEXT;
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS decided_by TEXT;
+ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'view';
 """
 
 

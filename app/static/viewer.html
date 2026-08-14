@@ -23,6 +23,10 @@
   .topbar button.z { width: auto; padding: 6px 12px; font-size: 14px; background: #e4e7eb; color: #1f2933; }
   .topbar button.z:disabled { opacity: .4; }
   .topbar .zval { min-width: 52px; text-align: center; font-size: 13px; color: #52606d; }
+  .topbar .right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .topbar button.dl { width: auto; padding: 8px 14px; font-size: 13px; }
+  .topbar a.dl { display: inline-block; padding: 8px 14px; font-size: 13px; border-radius: 8px; background: #137333; color: #fff; font-weight: 600; text-decoration: none; }
+  .topbar .dlstatus { font-size: 12px; color: #52606d; }
 
   .viewer { background: #3a3f44; padding: 20px 8px 40px; border-radius: 12px; margin-top: 16px; }
   .page { max-width: 560px; margin: 0 auto 20px; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.45); overflow: hidden; }
@@ -51,10 +55,14 @@
   <div id="viewerWrap" style="display:none">
     <div class="topbar">
       <div class="title" id="docTitle">Document</div>
-      <div class="zoom">
-        <button class="z" id="zoomOut">−</button>
-        <span class="zval" id="zoomVal">Fit</span>
-        <button class="z" id="zoomIn">+</button>
+      <div class="right">
+        <span class="dlstatus" id="dlStatus"></span>
+        <span id="dlArea"></span>
+        <span class="zoom">
+          <button class="z" id="zoomOut">−</button>
+          <span class="zval" id="zoomVal">Fit</span>
+          <button class="z" id="zoomIn">+</button>
+        </span>
       </div>
     </div>
     <div class="viewer" id="viewer">
@@ -70,10 +78,13 @@ const btn = document.getElementById('btn');
 const statusEl = document.getElementById('status');
 let pollTimer = null;
 let renderedPdf = null;
+let visitorName = '';
+let dlPollTimer = null;
 
 btn.onclick = async () => {
   const name = nameEl.value.trim();
   if (!name) { statusEl.textContent = 'Please enter your name.'; return; }
+  visitorName = name;
   btn.disabled = true;
   statusEl.textContent = 'Requesting access...';
   try {
@@ -113,6 +124,7 @@ let scale = 1;
 async function showDocument(pdfUrl, totalPages) {
   document.getElementById('gate').style.display = 'none';
   document.getElementById('viewerWrap').style.display = 'block';
+  renderDlButton();
   const viewer = document.getElementById('viewer');
   const loading = document.getElementById('loading');
   viewer.innerHTML = '';
@@ -161,6 +173,50 @@ function applyZoom(next) {
   scale = Math.min(2.5, Math.max(0.5, next));
   document.querySelectorAll('.page').forEach(p => p.style.maxWidth = `${560 * scale}px`);
   document.getElementById('zoomVal').textContent = `${Math.round(scale * 100)}%`;
+}
+
+async function requestDownload() {
+  const dlArea = document.getElementById('dlArea');
+  const dlStatus = document.getElementById('dlStatus');
+  dlArea.innerHTML = '<button class="dl" disabled>Requesting…</button>';
+  dlStatus.textContent = '';
+  try {
+    const res = await fetch('/api/download/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, name: visitorName })
+    });
+    if (!res.ok) { dlStatus.textContent = 'Download request failed.'; renderDlButton(); return; }
+    const data = await res.json();
+    dlStatus.textContent = 'Waiting for owner approval to download…';
+    dlArea.innerHTML = '<button class="dl" disabled>Waiting…</button>';
+    dlPollTimer = setInterval(() => pollDownload(data.request_id), 4000);
+    pollDownload(data.request_id);
+  } catch (e) {
+    dlStatus.textContent = 'Download request failed.';
+    renderDlButton();
+  }
+}
+
+function renderDlButton() {
+  document.getElementById('dlArea').innerHTML = '<button class="dl" onclick="requestDownload()">Download PDF</button>';
+}
+
+async function pollDownload(requestId) {
+  try {
+    const res = await fetch(`/api/download/status/${token}/${requestId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.status === 'approved') {
+      clearInterval(dlPollTimer);
+      document.getElementById('dlStatus').textContent = 'Your file is ready.';
+      document.getElementById('dlArea').innerHTML = `<a class="dl" href="${data.download_url}" download>Download PDF</a>`;
+    } else if (data.status === 'declined') {
+      clearInterval(dlPollTimer);
+      document.getElementById('dlStatus').textContent = 'Download was declined.';
+      renderDlButton();
+    }
+  } catch (e) {}
 }
 
 nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });

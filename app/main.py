@@ -103,7 +103,7 @@ def upload_document(document: UploadFile = File(...), _: bool = Depends(require_
     data = document.file.read()
     title = Path(document.filename).stem
     token = secrets.token_urlsafe(9)
-    pages = renderer.render_pdf(data, [title, token, _now()])
+    pages = renderer.render_pdf(data, ["BRION", token, _now()])
     page_count = len(pages)
     original_path = f"{token}/original.pdf"
     storage.upload_original(original_path, data)
@@ -130,6 +130,65 @@ def new_request(body: RequestBody, request: Request):
         except Exception as exc:
             print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
     return {"request_id": req["id"]}
+
+
+@app.post("/api/download/request")
+def new_download_request(body: RequestBody, request: Request):
+    doc = db.get_document_by_token(body.token)
+    if not doc or doc["status"] != "active":
+        raise HTTPException(status_code=404, detail="link not found or revoked")
+    name = body.name.strip()[:120]
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    client_ip = request.client.host if request.client else None
+    req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download")
+    chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
+    if chat_id:
+        try:
+            result = telegram.send_download_request(chat_id, doc["title"], name, req["id"], ip=client_ip or "")
+            if not result.get("ok"):
+                print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
+        except Exception as exc:
+            print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
+    return {"request_id": req["id"]}
+
+
+@app.get("/api/download/status/{token}/{request_id}")
+def download_status(token: str, request_id: int):
+    doc = db.get_document_by_token(token)
+    if not doc:
+        raise HTTPException(status_code=404)
+    req = db.get_access_request(request_id)
+    if not req or req["document_id"] != doc["id"]:
+        raise HTTPException(status_code=404)
+    return {
+        "status": req["status"],
+        "download_url": f"/v/{token}/download/{request_id}" if req["status"] == "approved" else None,
+    }
+
+
+@app.get("/v/{token}/download/{request_id}")
+def serve_download(token: str, request_id: int, request: Request):
+    doc = db.get_document_by_token(token)
+    if not doc:
+        raise HTTPException(status_code=404)
+    req = db.get_access_request(request_id)
+    if not req or req["document_id"] != doc["id"] or req["status"] != "approved" or req.get("kind") != "download":
+        raise HTTPException(status_code=403)
+    if not req.get("pages_path"):
+        raise HTTPException(status_code=404)
+    path = f"{req['pages_path']}/view.pdf"
+    data = storage.download_page(path)
+    try:
+        db.log_view(request_id, 0, request.client.host if request.client else None, request.headers.get("user-agent"))
+    except Exception:
+        pass
+    filename = f"{Path(doc['title']).stem}.pdf"
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/status/{token}/{request_id}")
@@ -185,7 +244,7 @@ def serve_pdf(token: str, request_id: int, request: Request):
 def _process_approval(req, doc, chat_id, message_id, decided_by):
     try:
         original = storage.download_original(doc["original_path"])
-        lines = [doc["title"], f"Viewer: {req['visitor_name']}", _now()]
+        lines = ["BRION", f"Viewer: {req['visitor_name']}", _now()]
         pages = renderer.render_pdf(original, lines)
         pages_path = f"{doc['token']}/{req['id']}"
         for index, page_data in enumerate(pages, start=1):
@@ -205,6 +264,30 @@ def _process_approval(req, doc, chat_id, message_id, decided_by):
             chat_id,
             message_id,
             telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by),
+            reply_markup={"inline_keyboard": []},
+        )
+
+
+def _process_download_approval(req, doc, chat_id, message_id, decided_by):
+    try:
+        original = storage.download_original(doc["original_path"])
+        lines = ["BRION", f"Download: {req['visitor_name']}", _now()]
+        view_pdf = renderer.render_pdf_to_pdf(original, lines)
+        pages_path = f"{doc['token']}/{req['id']}"
+        storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
+        db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
+        telegram.edit_message(
+            chat_id,
+            message_id,
+            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "approve", decided_by, kind="download"),
+            reply_markup={"inline_keyboard": []},
+        )
+    except Exception as exc:
+        db.set_request_status(req["id"], "declined", decided_by=decided_by)
+        telegram.edit_message(
+            chat_id,
+            message_id,
+            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by, kind="download"),
             reply_markup={"inline_keyboard": []},
         )
 
@@ -238,6 +321,18 @@ def handle_update(update):
     if action == "approve":
         telegram.answer_callback(callback["id"], "Approving...")
         threading.Thread(target=_process_approval, args=(req, doc, callback_chat_id, message_id, decided_by), daemon=True).start()
+    elif action == "dapprove":
+        telegram.answer_callback(callback["id"], "Preparing download...")
+        threading.Thread(target=_process_download_approval, args=(req, doc, callback_chat_id, message_id, decided_by), daemon=True).start()
+    elif action == "ddecline":
+        db.set_request_status(req["id"], "declined", decided_by=decided_by)
+        telegram.answer_callback(callback["id"], "Declined")
+        telegram.edit_message(
+            callback_chat_id,
+            message_id,
+            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by, kind="download"),
+            reply_markup={"inline_keyboard": []},
+        )
     else:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
         telegram.answer_callback(callback["id"], "Declined")

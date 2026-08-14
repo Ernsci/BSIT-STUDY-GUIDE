@@ -25,10 +25,25 @@ def send_approval_request(chat_id, title, visitor_name, request_id, ip=""):
     )
 
 
-def format_request(title, name, ip=""):
+def send_download_request(chat_id, title, visitor_name, request_id, ip=""):
+    return _call(
+        "sendMessage",
+        chat_id=chat_id,
+        text=format_request(title, visitor_name, ip, kind="download"),
+        reply_markup={
+            "inline_keyboard": [[
+                {"text": "⬇️ Approve download", "callback_data": f"dapprove:{request_id}"},
+                {"text": "❌ Decline", "callback_data": f"ddecline:{request_id}"},
+            ]]
+        },
+    )
+
+
+def format_request(title, name, ip="", kind="view"):
     ip = ip or "Unknown"
+    label = "Download Request" if kind == "download" else "Access Request"
     return (
-        f"📥 New Access Request\n"
+        f"📥 New {label}\n"
         f"─────────────\n"
         f"👤 Name: {name}\n"
         f"📄 File: {title}\n"
@@ -36,12 +51,13 @@ def format_request(title, name, ip=""):
     )
 
 
-def format_decision(title, name, ip, action, by):
+def format_decision(title, name, ip, action, by, kind="view"):
     ip = ip or "Unknown"
+    is_download = kind == "download"
     if action == "approve":
-        head = "✅ Access Approved"
+        head = "⬇️ Download Approved" if is_download else "✅ Access Approved"
     else:
-        head = "❌ Access Declined"
+        head = "❌ Download Declined" if is_download else "❌ Access Declined"
     return (
         f"{head}\n"
         f"─────────────\n"
