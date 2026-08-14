@@ -17,7 +17,7 @@ from . import config, db, renderer, storage, telegram
 STATIC_DIR = Path(__file__).parent / "static"
 serializer = URLSafeSerializer(config.ADMIN_SECRET)
 
-app = FastAPI(title="Approval Documents")
+app = FastAPI(title="Approval Documents", docs_url=None, redoc_url=None)
 app.mount("/pdfjs", StaticFiles(directory=STATIC_DIR / "pdfjs"), name="pdfjs")
 
 
@@ -160,6 +160,11 @@ def _enforce_antispam(user_id):
 @app.get("/api/documents")
 def public_documents():
     return db.list_active_documents()
+
+
+@app.get("/docs", response_class=FileResponse)
+def docs_page():
+    return FileResponse(STATIC_DIR / "login-needed.html")
 
 
 @app.get(f"/{config.ADMIN_URL_PATH}", response_class=FileResponse)
