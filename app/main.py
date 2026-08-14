@@ -100,9 +100,11 @@ def new_request(body: RequestBody):
     chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
         try:
-            telegram.send_approval_request(chat_id, doc["title"], name, req["id"])
-        except Exception:
-            pass
+            result = telegram.send_approval_request(chat_id, doc["title"], name, req["id"])
+            if not result.get("ok"):
+                print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
+        except Exception as exc:
+            print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
     return {"request_id": req["id"]}
 
 
