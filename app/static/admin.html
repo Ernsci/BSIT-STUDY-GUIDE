@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Document control</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  input[type=file] { width: 100%; padding: 10px; border: 1px dashed #d3dce6; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+  button { padding: 10px 18px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.secondary { background: #e4e7eb; color: #1f2933; }
+  .msg { margin-top: 12px; font-size: 13px; color: #52606d; word-break: break-all; }
+  .msg.good { color: #137333; }
+  .msg.bad { color: #c0392b; }
+  .doc { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eef1f4; }
+  .doc:last-child { border-bottom: 0; }
+  .doc .title { font-weight: 600; }
+  .doc .meta { font-size: 12px; color: #7b8794; margin-top: 2px; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .badge.active { background: #e6f4ea; color: #137333; }
+  .badge.revoked { background: #fdecea; color: #c0392b; }
+  #login input[type=password] { width: 100%; padding: 12px 14px; border: 1px solid #d3dce6; border-radius: 8px; font-size: 15px; margin-bottom: 12px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="login">
+    <h1>Document control</h1>
+    <input type="password" id="password" placeholder="Admin password">
+    <button onclick="login()">Log in</button>
+    <div class="msg bad" id="loginMsg"></div>
+  </div>
+
+  <div class="card hidden" id="app">
+    <h1>Upload a PDF</h1>
+    <input type="file" id="file" accept=".pdf">
+    <button onclick="upload()">Upload &amp; protect</button>
+    <div class="msg" id="uploadMsg"></div>
+  </div>
+
+  <div class="card hidden" id="docsCard">
+    <h1>Your documents</h1>
+    <div id="docs"></div>
+  </div>
+</div>
+<script>
+async function login() {
+  const fd = new FormData();
+  fd.append('password', document.getElementById('password').value);
+  const res = await fetch('/api/admin/login', { method: 'POST', body: fd });
+  if (res.ok) {
+    showApp();
+  } else {
+    document.getElementById('loginMsg').textContent = 'Wrong password.';
+  }
+}
+
+function showApp() {
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('docsCard').classList.remove('hidden');
+  loadDocs();
+}
+
+async function upload() {
+  const fileEl = document.getElementById('file');
+  if (!fileEl.files.length) return;
+  const msg = document.getElementById('uploadMsg');
+  const fd = new FormData();
+  fd.append('document', fileEl.files[0]);
+  msg.className = 'msg';
+  msg.textContent = 'Uploading and rendering...';
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) { msg.className = 'msg bad'; msg.textContent = data.detail || 'Upload failed.'; return; }
+    msg.className = 'msg good';
+    msg.textContent = `Protected. Share this link: ${location.origin}/v/${data.token}`;
+    loadDocs();
+  } catch (e) {
+    msg.className = 'msg bad';
+    msg.textContent = 'Upload failed.';
+  }
+}
+
+async function loadDocs() {
+  const res = await fetch('/api/admin/documents');
+  if (!res.ok) return;
+  const docs = await res.json();
+  const el = document.getElementById('docs');
+  el.innerHTML = '';
+  if (!docs.length) { el.innerHTML = '<div class="msg">No documents yet.</div>'; return; }
+  for (const d of docs) {
+    const row = document.createElement('div');
+    row.className = 'doc';
+    const badge = `<span class="badge ${d.status}">${d.status}</span>`;
+    const link = `<a href="/v/${d.token}" target="_blank">/v/${d.token}</a>`;
+    row.innerHTML = `
+      <div>
+        <div class="title">${d.title}</div>
+        <div class="meta">${d.page_count} pages · link: ${link}</div>
+      </div>
+      <div>${badge} ${d.status === 'active' ? '<button class="secondary" onclick="revoke(' + d.id + ')">Revoke</button>' : ''}</div>`;
+    el.appendChild(row);
+  }
+}
+
+async function revoke(id) {
+  await fetch(`/api/admin/revoke/${id}`, { method: 'POST' });
+  loadDocs();
+}
+
+(async () => {
+  const res = await fetch('/api/admin/documents');
+  if (res.ok) showApp();
+})();
+</script>
+</body>
+</html>

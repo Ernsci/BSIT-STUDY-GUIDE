@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Secure document</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); text-align: center; margin-top: 8vh; }
+  .card h1 { font-size: 20px; margin: 0 0 8px; }
+  .card p { color: #52606d; margin: 0 0 20px; }
+  input[type=text] { width: 100%; padding: 12px 14px; border: 1px solid #d3dce6; border-radius: 8px; font-size: 15px; margin-bottom: 14px; }
+  button { width: 100%; padding: 12px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button:disabled { background: #9aa5b1; cursor: not-allowed; }
+  .status { margin-top: 16px; color: #52606d; font-size: 14px; }
+  .denied { margin-top: 16px; color: #c0392b; font-weight: 600; }
+  #pages img { width: 100%; display: block; margin: 0 0 12px; border: 1px solid #d3dce6; border-radius: 4px; background: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="gate">
+    <h1>Secure document</h1>
+    <p>This document is access-controlled. Enter your name to request access from the owner.</p>
+    <input type="text" id="name" placeholder="Your name" autocomplete="off">
+    <button id="btn">Request access</button>
+    <div class="status" id="status"></div>
+  </div>
+  <div id="pages" style="display:none"></div>
+</div>
+<script>
+const token = location.pathname.split('/')[2];
+const nameEl = document.getElementById('name');
+const btn = document.getElementById('btn');
+const statusEl = document.getElementById('status');
+const pagesEl = document.getElementById('pages');
+let pollTimer = null;
+
+btn.onclick = async () => {
+  const name = nameEl.value.trim();
+  if (!name) { statusEl.textContent = 'Please enter your name.'; return; }
+  btn.disabled = true;
+  statusEl.textContent = 'Requesting access...';
+  try {
+    const res = await fetch('/api/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, name })
+    });
+    if (!res.ok) { statusEl.textContent = 'Link not found or revoked.'; return; }
+    const data = await res.json();
+    statusEl.textContent = 'Waiting for the owner to approve your request...';
+    pollTimer = setInterval(() => poll(data.request_id), 4000);
+    poll(data.request_id);
+  } catch (e) {
+    statusEl.textContent = 'Something went wrong. Try again.';
+    btn.disabled = false;
+  }
+};
+
+async function poll(requestId) {
+  try {
+    const res = await fetch(`/api/status/${token}/${requestId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.status === 'approved') {
+      clearInterval(pollTimer);
+      document.querySelector('.card').style.display = 'none';
+      pagesEl.style.display = 'block';
+      pagesEl.innerHTML = '';
+      for (const url of data.pages) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'page';
+        pagesEl.appendChild(img);
+      }
+    } else if (data.status === 'declined') {
+      clearInterval(pollTimer);
+      statusEl.className = 'denied';
+      statusEl.textContent = 'Access was declined by the owner.';
+    }
+  } catch (e) {}
+}
+
+nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+</script>
+</body>
+</html>
