@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS access_requests (
     ip TEXT,
     kind TEXT NOT NULL DEFAULT 'view',
     decided_by TEXT,
+    batch_message_id BIGINT,
     requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     decided_at TIMESTAMPTZ
 );
@@ -55,6 +56,7 @@ ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS ip TEXT;
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS decided_by TEXT;
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'view';
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS batch_message_id BIGINT;
 """
 
 

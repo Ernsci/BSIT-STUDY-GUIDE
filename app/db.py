@@ -110,6 +110,24 @@ def set_request_status(request_id, status, pages_path=None, decided_by=None):
     client().table("access_requests").update(payload).eq("id", request_id).execute()
 
 
+def set_request_batch_message(request_ids, message_id):
+    if not request_ids:
+        return
+    client().table("access_requests").update({"batch_message_id": message_id}).in_("id", request_ids).execute()
+
+
+def get_requests_by_batch(message_id):
+    data = (
+        client().table("access_requests")
+        .select("*")
+        .eq("batch_message_id", message_id)
+        .order("id")
+        .execute()
+        .data
+    )
+    return data or []
+
+
 def log_view(request_id, page_number, ip, user_agent):
     client().table("view_logs").insert({
         "request_id": request_id,

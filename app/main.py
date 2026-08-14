@@ -196,7 +196,11 @@ class _NotificationBatcher:
         for chat_id, group in by_chat.items():
             try:
                 result = telegram.send_batch_requests(chat_id, group)
-                if not result.get("ok"):
+                if result.get("ok"):
+                    message_id = (result.get("result") or {}).get("message_id")
+                    if message_id:
+                        db.set_request_batch_message([it["request_id"] for it in group], message_id)
+                else:
                     print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
             except Exception as exc:
                 print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
@@ -466,20 +470,10 @@ def _process_approval(req, doc, chat_id, message_id, decided_by):
         view_pdf = renderer.render_pdf_to_pdf(original, lines)
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
-        telegram.edit_message(
-            chat_id,
-            message_id,
-            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "approve", decided_by),
-            reply_markup={"inline_keyboard": []},
-        )
+        _finalize_message(chat_id, message_id, req, doc, "approve", decided_by)
     except Exception as exc:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
-        telegram.edit_message(
-            chat_id,
-            message_id,
-            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by),
-            reply_markup={"inline_keyboard": []},
-        )
+        _finalize_message(chat_id, message_id, req, doc, "decline", decided_by)
 
 
 def _process_download_approval(req, doc, chat_id, message_id, decided_by):
@@ -490,20 +484,75 @@ def _process_download_approval(req, doc, chat_id, message_id, decided_by):
         pages_path = f"{doc['token']}/{req['id']}"
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
-        telegram.edit_message(
-            chat_id,
-            message_id,
-            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "approve", decided_by, kind="download"),
-            reply_markup={"inline_keyboard": []},
-        )
+        _finalize_message(chat_id, message_id, req, doc, "approve", decided_by, kind="download")
     except Exception as exc:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
-        telegram.edit_message(
-            chat_id,
-            message_id,
-            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by, kind="download"),
-            reply_markup={"inline_keyboard": []},
-        )
+        _finalize_message(chat_id, message_id, req, doc, "decline", decided_by, kind="download")
+
+
+def _rebuild_batch_message(chat_id, message_id):
+    """Re-render a grouped notification message from current DB state.
+    Decided requests become plain text; still-pending ones keep their buttons."""
+    reqs = db.get_requests_by_batch(message_id)
+    if not reqs:
+        return False
+    docs = {}
+    for r in reqs:
+        if r["document_id"] not in docs:
+            docs[r["document_id"]] = db.get_document(r["document_id"])
+    lines = []
+    keyboard = []
+    pending_count = 0
+    for idx, r in enumerate(reqs, 1):
+        doc = docs.get(r["document_id"]) or {}
+        title = doc.get("title", "unknown")
+        name = r["visitor_name"]
+        ip = r.get("ip") or "Unknown"
+        kind = r.get("kind") or "view"
+        if r["status"] == "pending":
+            pending_count += 1
+            label = "Download Request" if kind == "download" else "Access Request"
+            lines.append(
+                f"\n{idx}. {label}\n"
+                f"👤 Name: {name}\n"
+                f"📄 File: {title}\n"
+                f"🌐 IP: {ip}"
+            )
+            if kind == "download":
+                keyboard.append([
+                    {"text": f"⬇️ Approve {idx}", "callback_data": f"dapprove:{r['id']}"},
+                    {"text": f"❌ Decline {idx}", "callback_data": f"ddecline:{r['id']}"},
+                ])
+            else:
+                keyboard.append([
+                    {"text": f"✅ Approve {idx}", "callback_data": f"approve:{r['id']}"},
+                    {"text": f"❌ Decline {idx}", "callback_data": f"decline:{r['id']}"},
+                ])
+        else:
+            mark = "✅" if r["status"] == "approved" else "❌"
+            by = r.get("decided_by") or "Unknown"
+            lines.append(f"\n{idx}. {mark} Decided · {name} · {title} · by {by}")
+    head = f"📥 {len(reqs)} request{'s' if len(reqs) != 1 else ''} · {pending_count} waiting"
+    text = "\n".join([head] + lines)
+    reply_markup = {"inline_keyboard": keyboard} if keyboard else None
+    telegram.edit_message(chat_id, message_id, text, reply_markup=reply_markup)
+    return True
+
+
+def _finalize_message(chat_id, message_id, req, doc, action, decided_by, kind="view"):
+    """After a decision, rebuild the batch if this request was part of one,
+    otherwise replace with the single-request decision card."""
+    try:
+        if _rebuild_batch_message(chat_id, message_id):
+            return
+    except Exception:
+        pass
+    telegram.edit_message(
+        chat_id,
+        message_id,
+        telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), action, decided_by, kind=kind),
+        reply_markup={"inline_keyboard": []},
+    )
 
 
 def handle_update(update):
@@ -541,21 +590,11 @@ def handle_update(update):
     elif action == "ddecline":
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
         telegram.answer_callback(callback["id"], "Declined")
-        telegram.edit_message(
-            callback_chat_id,
-            message_id,
-            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by, kind="download"),
-            reply_markup={"inline_keyboard": []},
-        )
+        _finalize_message(callback_chat_id, message_id, req, doc, "decline", decided_by, kind="download")
     else:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
         telegram.answer_callback(callback["id"], "Declined")
-        telegram.edit_message(
-            callback_chat_id,
-            message_id,
-            telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), "decline", decided_by),
-            reply_markup={"inline_keyboard": []},
-        )
+        _finalize_message(callback_chat_id, message_id, req, doc, "decline", decided_by)
 
 
 @app.post("/api/telegram/webhook")
