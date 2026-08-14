@@ -19,6 +19,7 @@ serializer = URLSafeSerializer(config.ADMIN_SECRET)
 
 app = FastAPI(title="Approval Documents", docs_url=None, redoc_url=None)
 app.mount("/pdfjs", StaticFiles(directory=STATIC_DIR / "pdfjs"), name="pdfjs")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 def _hash_password(password):
