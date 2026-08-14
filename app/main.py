@@ -289,6 +289,40 @@ def serve_download(token: str, request_id: int, request: Request):
     )
 
 
+@app.get("/api/my/documents")
+def my_documents(user: dict = Depends(require_user)):
+    docs = db.list_active_documents()
+    requests = db.get_user_requests(user["id"])
+    by_doc = {}
+    for r in requests:
+        entry = by_doc.setdefault(r["document_id"], {"view": None, "download": None})
+        if r["kind"] == "view" and entry["view"] is None:
+            entry["view"] = r
+        elif r["kind"] == "download" and entry["download"] is None:
+            entry["download"] = r
+    result = []
+    for d in docs:
+        r = by_doc.get(d["id"], {"view": None, "download": None})
+        view, dl = r["view"], r["download"]
+        result.append({
+            "id": d["id"],
+            "token": d["token"],
+            "title": d["title"],
+            "page_count": d["page_count"],
+            "view": {
+                "status": view["status"] if view else "none",
+                "request_id": view["id"] if view else None,
+                "pdf": f"/v/{d['token']}/pdf/{view['id']}" if view and view["status"] == "approved" else None,
+            },
+            "download": {
+                "status": dl["status"] if dl else "none",
+                "request_id": dl["id"] if dl else None,
+                "url": f"/v/{d['token']}/download/{dl['id']}" if dl and dl["status"] == "approved" else None,
+            },
+        })
+    return result
+
+
 @app.get("/api/my/status/{token}")
 def my_status(token: str, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
