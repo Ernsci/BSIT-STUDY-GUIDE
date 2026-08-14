@@ -188,12 +188,12 @@ def handle_update(update):
 
 
 @app.post("/api/telegram/webhook")
-def telegram_webhook(request: Request):
+async def telegram_webhook(request: Request):
     if config.TELEGRAM_WEBHOOK_SECRET:
         supplied = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
         if supplied != config.TELEGRAM_WEBHOOK_SECRET:
             raise HTTPException(status_code=403, detail="invalid webhook secret")
-    update = request.json()
+    update = await request.json()
     handle_update(update)
     return {"ok": True}
 
