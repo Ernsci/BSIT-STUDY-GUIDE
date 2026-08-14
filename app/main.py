@@ -158,6 +158,64 @@ def _enforce_antispam(user_id):
         raise HTTPException(status_code=429, detail=f"Please wait {wait}s before requesting again.")
 
 
+class _NotificationBatcher:
+    """Groups incoming request notifications into a single Telegram message
+    so a burst of traffic (5-10 people) doesn't flood the owner's chat."""
+
+    def __init__(self, flush_seconds, max_items):
+        self.flush_seconds = flush_seconds
+        self.max_items = max_items
+        self._lock = threading.Lock()
+        self._items = []
+        self._timer = None
+
+    def enqueue(self, item):
+        with self._lock:
+            self._items.append(item)
+            if len(self._items) >= self.max_items:
+                self._flush_locked()
+            elif self._timer is None:
+                self._timer = threading.Timer(self.flush_seconds, self._flush)
+                self._timer.daemon = True
+                self._timer.start()
+
+    def _flush(self):
+        with self._lock:
+            self._flush_locked()
+
+    def _flush_locked(self):
+        items, self._items = self._items, []
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        if not items:
+            return
+        by_chat = {}
+        for it in items:
+            by_chat.setdefault(it["chat_id"], []).append(it)
+        for chat_id, group in by_chat.items():
+            try:
+                result = telegram.send_batch_requests(chat_id, group)
+                if not result.get("ok"):
+                    print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
+            except Exception as exc:
+                print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
+
+
+_batcher = _NotificationBatcher(config.REQUEST_BATCH_SECONDS, config.REQUEST_BATCH_MAX)
+
+
+def _enqueue_notification(chat_id, kind, title, name, request_id, ip):
+    _batcher.enqueue({
+        "chat_id": chat_id,
+        "kind": kind,
+        "title": title,
+        "name": name,
+        "request_id": request_id,
+        "ip": ip,
+    })
+
+
 @app.get("/api/documents")
 def public_documents():
     return db.list_active_documents()
@@ -237,12 +295,7 @@ def new_request(body: RequestBody, request: Request, user: dict = Depends(requir
     req = db.create_access_request(doc["id"], name, ip=client_ip, user_id=user["id"])
     chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
-        try:
-            result = telegram.send_approval_request(chat_id, doc["title"], name, req["id"], ip=client_ip or "")
-            if not result.get("ok"):
-                print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
-        except Exception as exc:
-            print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
+        _enqueue_notification(chat_id, "view", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
 
@@ -257,12 +310,7 @@ def new_download_request(body: RequestBody, request: Request, user: dict = Depen
     req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download", user_id=user["id"])
     chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
-        try:
-            result = telegram.send_download_request(chat_id, doc["title"], name, req["id"], ip=client_ip or "")
-            if not result.get("ok"):
-                print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
-        except Exception as exc:
-            print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
+        _enqueue_notification(chat_id, "download", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
 

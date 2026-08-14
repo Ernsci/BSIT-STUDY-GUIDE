@@ -26,6 +26,10 @@ services:
         value: "2"
       - key: ANTI_SPAM_MIN_SECONDS
         value: "60"
+      - key: REQUEST_BATCH_SECONDS
+        value: "15"
+      - key: REQUEST_BATCH_MAX
+        value: "10"
       - key: OWNER_FACEBOOK_URL
         sync: false
       - key: OWNER_EMAIL

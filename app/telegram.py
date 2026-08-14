@@ -39,6 +39,38 @@ def send_download_request(chat_id, title, visitor_name, request_id, ip=""):
     )
 
 
+def send_batch_requests(chat_id, items):
+    """Send one message grouping several pending requests, one button-row each."""
+    lines = [f"📥 {len(items)} new request{'s' if len(items) != 1 else ''}:"]
+    keyboard = []
+    for idx, it in enumerate(items, 1):
+        is_download = it.get("kind") == "download"
+        label = "Download Request" if is_download else "Access Request"
+        lines.append(
+            f"\n{idx}. {label}\n"
+            f"👤 Name: {it['name']}\n"
+            f"📄 File: {it['title']}\n"
+            f"🌐 IP: {it['ip'] or 'Unknown'}"
+        )
+        req_id = it["request_id"]
+        if is_download:
+            keyboard.append([
+                {"text": f"⬇️ Approve {idx}", "callback_data": f"dapprove:{req_id}"},
+                {"text": f"❌ Decline {idx}", "callback_data": f"ddecline:{req_id}"},
+            ])
+        else:
+            keyboard.append([
+                {"text": f"✅ Approve {idx}", "callback_data": f"approve:{req_id}"},
+                {"text": f"❌ Decline {idx}", "callback_data": f"decline:{req_id}"},
+            ])
+    return _call(
+        "sendMessage",
+        chat_id=chat_id,
+        text="\n".join(lines),
+        reply_markup={"inline_keyboard": keyboard},
+    )
+
+
 def format_request(title, name, ip="", kind="view"):
     ip = ip or "Unknown"
     label = "Download Request" if kind == "download" else "Access Request"
