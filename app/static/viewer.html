@@ -11,11 +11,18 @@
   .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); text-align: center; margin-top: 8vh; }
   .card h1 { font-size: 20px; margin: 0 0 8px; }
   .card p { color: #52606d; margin: 0 0 20px; }
-  input[type=text] { width: 100%; padding: 12px 14px; border: 1px solid #d3dce6; border-radius: 8px; font-size: 15px; margin-bottom: 14px; }
+  input[type=text], input[type=email], input[type=password] { width: 100%; padding: 12px 14px; border: 1px solid #d3dce6; border-radius: 8px; font-size: 15px; margin-bottom: 12px; box-sizing: border-box; }
   button { width: 100%; padding: 12px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
   button:disabled { background: #9aa5b1; cursor: not-allowed; }
   .status { margin-top: 16px; color: #52606d; font-size: 14px; }
   .denied { margin-top: 16px; color: #c0392b; font-weight: 600; }
+  .tabs { display: flex; margin-bottom: 16px; }
+  .tab { flex: 1; padding: 10px; background: #eef1f4; color: #52606d; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .tab.active { background: #1a73e8; color: #fff; }
+  .tab + .tab { margin-left: 8px; }
+  .acct { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 14px; color: #52606d; }
+  .acct .who { font-weight: 600; color: #1f2933; }
+  .acct button { width: auto; padding: 6px 12px; font-size: 12px; background: #e4e7eb; color: #1f2933; }
 
   .topbar { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .topbar .title { font-size: 15px; font-weight: 600; }
@@ -46,10 +53,38 @@
 <div class="wrap">
   <div class="card" id="gate">
     <h1>Secure document</h1>
-    <p>This document is access-controlled. Enter your name to request access from the owner.</p>
-    <input type="text" id="name" placeholder="Your name" autocomplete="off">
-    <button id="btn">Request access</button>
-    <div class="status" id="status"></div>
+    <p>This document is access-controlled. Create an account or log in to request access from the owner.</p>
+
+    <div id="authView">
+      <div class="tabs">
+        <button class="tab active" id="tabLogin" onclick="switchTab('login')">Log in</button>
+        <button class="tab" id="tabRegister" onclick="switchTab('register')">Create account</button>
+      </div>
+
+      <div id="loginPane">
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+        <button id="btnLogin">Log in</button>
+      </div>
+
+      <div id="registerPane" style="display:none">
+        <input type="text" id="regName" placeholder="Your name" autocomplete="name">
+        <input type="email" id="regEmail" placeholder="Email" autocomplete="email">
+        <input type="password" id="regPassword" placeholder="Password (min 6 chars)" autocomplete="new-password">
+        <button id="btnRegister">Create account</button>
+      </div>
+
+      <div class="status" id="authStatus"></div>
+    </div>
+
+    <div id="reqView" style="display:none">
+      <div class="acct">
+        <span>Signed in as <span class="who" id="acctName"></span></span>
+        <button onclick="logout()">Log out</button>
+      </div>
+      <button id="btn">Request access</button>
+      <div class="status" id="status"></div>
+    </div>
   </div>
 
   <div id="viewerWrap" style="display:none">
@@ -73,27 +108,100 @@
 <script src="/pdfjs/pdf.min.js"></script>
 <script>
 const token = location.pathname.split('/')[2];
-const nameEl = document.getElementById('name');
-const btn = document.getElementById('btn');
 const statusEl = document.getElementById('status');
+const authStatusEl = document.getElementById('authStatus');
 let pollTimer = null;
 let renderedPdf = null;
-let visitorName = '';
 let dlPollTimer = null;
 
+const AUTH_KEY = 'brion_auth';
+
+function getAuth() {
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) { return null; }
+}
+function setAuth(auth) { localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); }
+function authHeaders() {
+  const auth = getAuth();
+  return { 'Content-Type': 'application/json', ...(auth ? { Authorization: 'Bearer ' + auth.token } : {}) };
+}
+
+function switchTab(which) {
+  document.getElementById('tabLogin').classList.toggle('active', which === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', which === 'register');
+  document.getElementById('loginPane').style.display = which === 'login' ? '' : 'none';
+  document.getElementById('registerPane').style.display = which === 'register' ? '' : 'none';
+  authStatusEl.textContent = '';
+}
+
+function showAuthUI() {
+  const auth = getAuth();
+  document.getElementById('authView').style.display = auth ? 'none' : '';
+  document.getElementById('reqView').style.display = auth ? '' : 'none';
+  if (auth) {
+    document.getElementById('acctName').textContent = auth.name;
+    document.getElementById('btn').disabled = false;
+    statusEl.textContent = '';
+  }
+}
+
+async function submitAuth(path, body) {
+  authStatusEl.textContent = 'Working...';
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      authStatusEl.textContent = err.detail || 'Something went wrong.';
+      return;
+    }
+    const data = await res.json();
+    setAuth({ token: data.token, name: data.name });
+    showAuthUI();
+  } catch (e) {
+    authStatusEl.textContent = 'Network error. Try again.';
+  }
+}
+
+document.getElementById('btnLogin').onclick = () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!email || !password) { authStatusEl.textContent = 'Enter your email and password.'; return; }
+  submitAuth('/api/login', { email, password });
+};
+
+document.getElementById('btnRegister').onclick = () => {
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  if (!name || !email || !password) { authStatusEl.textContent = 'Fill in all fields.'; return; }
+  submitAuth('/api/register', { name, email, password });
+};
+
+function logout() {
+  localStorage.removeItem(AUTH_KEY);
+  showAuthUI();
+}
+
+const btn = document.getElementById('btn');
 btn.onclick = async () => {
-  const name = nameEl.value.trim();
-  if (!name) { statusEl.textContent = 'Please enter your name.'; return; }
-  visitorName = name;
   btn.disabled = true;
   statusEl.textContent = 'Requesting access...';
   try {
     const res = await fetch('/api/request', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, name })
+      headers: authHeaders(),
+      body: JSON.stringify({ token })
     });
-    if (!res.ok) { statusEl.textContent = 'Link not found or revoked.'; return; }
+    if (res.status === 401) { logout(); statusEl.textContent = 'Please log in again.'; return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.textContent = err.detail || 'Link not found or revoked.';
+      btn.disabled = false;
+      return;
+    }
     const data = await res.json();
     statusEl.textContent = 'Waiting for the owner to approve your request...';
     pollTimer = setInterval(() => poll(data.request_id), 4000);
@@ -116,6 +224,7 @@ async function poll(requestId) {
       clearInterval(pollTimer);
       statusEl.className = 'denied';
       statusEl.textContent = 'Access was declined by the owner.';
+      btn.disabled = false;
     }
   } catch (e) {}
 }
@@ -183,8 +292,8 @@ async function requestDownload() {
   try {
     const res = await fetch('/api/download/request', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, name: visitorName })
+      headers: authHeaders(),
+      body: JSON.stringify({ token })
     });
     if (!res.ok) { dlStatus.textContent = 'Download request failed.'; renderDlButton(); return; }
     const data = await res.json();
@@ -219,7 +328,7 @@ async function pollDownload(requestId) {
   } catch (e) {}
 }
 
-nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+showAuthUI();
 </script>
 </body>
 </html>

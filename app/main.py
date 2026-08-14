@@ -1,10 +1,12 @@
+import hashlib
+import hmac
 import secrets
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Cookie, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
@@ -19,8 +21,54 @@ app = FastAPI(title="Approval Documents")
 app.mount("/pdfjs", StaticFiles(directory=STATIC_DIR / "pdfjs"), name="pdfjs")
 
 
+def _hash_password(password):
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 100_000)
+    return f"{salt}${digest.hex()}"
+
+
+def _verify_password(password, stored):
+    try:
+        salt, _, expected = stored.partition("$")
+        digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 100_000)
+        return hmac.compare_digest(digest.hex(), expected)
+    except Exception:
+        return False
+
+
+def _user_token(user_id):
+    return serializer.dumps({"uid": user_id})
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _age_seconds(last_requested_at):
+    if not last_requested_at:
+        return None
+    try:
+        last = datetime.fromisoformat(last_requested_at)
+    except Exception:
+        return None
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - last).total_seconds()
+
+
+def require_user(authorization: str = Header(default="")):
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="not logged in")
+    try:
+        payload = serializer.loads(token)
+    except BadSignature:
+        raise HTTPException(status_code=401, detail="bad session")
+    uid = payload.get("uid")
+    user = db.get_user(uid) if isinstance(uid, int) else None
+    if not user:
+        raise HTTPException(status_code=401, detail="account not found")
+    return user
 
 
 def require_admin(admin_session: str = Cookie(default=None)):
@@ -35,7 +83,17 @@ def require_admin(admin_session: str = Cookie(default=None)):
 
 class RequestBody(BaseModel):
     token: str
+
+
+class RegisterBody(BaseModel):
     name: str
+    email: str
+    password: str
+
+
+class LoginBody(BaseModel):
+    email: str
+    password: str
 
 
 @app.get("/health")
@@ -43,9 +101,51 @@ def health():
     return {"ok": True}
 
 
+@app.post("/api/register")
+def register(body: RegisterBody):
+    name = body.name.strip()[:120]
+    email = body.email.strip().lower()[:200]
+    password = body.password
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="valid email required")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="password must be at least 6 characters")
+    if db.get_user_by_email(email):
+        raise HTTPException(status_code=409, detail="email already registered")
+    user = db.create_user(name, email, _hash_password(password))
+    return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
+
+
+@app.post("/api/login")
+def login(body: LoginBody):
+    email = body.email.strip().lower()
+    user = db.get_user_by_email(email)
+    if not user or not _verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
+
+
+@app.get("/api/me")
+def me(user: dict = Depends(require_user)):
+    return {"id": user["id"], "name": user["name"], "email": user["email"]}
+
+
 @app.get("/", response_class=FileResponse)
 def dashboard_page():
     return FileResponse(STATIC_DIR / "dashboard.html")
+
+
+def _enforce_antispam(user_id):
+    pending = db.count_pending_requests(user_id)
+    if pending >= config.ANTI_SPAM_MAX_PENDING:
+        raise HTTPException(status_code=429, detail="Too many pending requests. Wait for them to be decided.")
+    last_at = db.last_request_at(user_id)
+    age = _age_seconds(last_at)
+    if age is not None and age < config.ANTI_SPAM_MIN_SECONDS:
+        wait = int(config.ANTI_SPAM_MIN_SECONDS - age)
+        raise HTTPException(status_code=429, detail=f"Please wait {wait}s before requesting again.")
 
 
 @app.get("/api/documents")
@@ -112,15 +212,14 @@ def upload_document(document: UploadFile = File(...), _: bool = Depends(require_
 
 
 @app.post("/api/request")
-def new_request(body: RequestBody, request: Request):
+def new_request(body: RequestBody, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(body.token)
     if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404, detail="link not found or revoked")
-    name = body.name.strip()[:120]
-    if not name:
-        raise HTTPException(status_code=400, detail="name required")
+    name = user["name"]
     client_ip = request.client.host if request.client else None
-    req = db.create_access_request(doc["id"], name, ip=client_ip)
+    _enforce_antispam(user["id"])
+    req = db.create_access_request(doc["id"], name, ip=client_ip, user_id=user["id"])
     chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
         try:
@@ -133,15 +232,14 @@ def new_request(body: RequestBody, request: Request):
 
 
 @app.post("/api/download/request")
-def new_download_request(body: RequestBody, request: Request):
+def new_download_request(body: RequestBody, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(body.token)
     if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404, detail="link not found or revoked")
-    name = body.name.strip()[:120]
-    if not name:
-        raise HTTPException(status_code=400, detail="name required")
+    name = user["name"]
     client_ip = request.client.host if request.client else None
-    req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download")
+    _enforce_antispam(user["id"])
+    req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download", user_id=user["id"])
     chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
     if chat_id:
         try:

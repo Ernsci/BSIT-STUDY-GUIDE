@@ -54,7 +54,7 @@ def delete_document(doc_id):
     client().table("documents").delete().eq("id", doc_id).execute()
 
 
-def create_access_request(document_id, visitor_name, ip=None, kind="view"):
+def create_access_request(document_id, visitor_name, ip=None, kind="view", user_id=None):
     payload = {
         "document_id": document_id,
         "visitor_name": visitor_name,
@@ -63,6 +63,8 @@ def create_access_request(document_id, visitor_name, ip=None, kind="view"):
     }
     if ip is not None:
         payload["ip"] = ip
+    if user_id is not None:
+        payload["user_id"] = user_id
     row = client().table("access_requests").insert(payload).execute().data[0]
     return row
 
@@ -88,3 +90,47 @@ def log_view(request_id, page_number, ip, user_agent):
         "ip": ip,
         "user_agent": user_agent,
     }).execute()
+
+
+def create_user(name, email, password_hash):
+    row = client().table("users").insert({
+        "name": name,
+        "email": email.lower(),
+        "password_hash": password_hash,
+    }).execute().data[0]
+    return row
+
+
+def get_user_by_email(email):
+    data = client().table("users").select("*").eq("email", email.lower()).execute().data
+    return data[0] if data else None
+
+
+def get_user(user_id):
+    data = client().table("users").select("*").eq("id", user_id).execute().data
+    return data[0] if data else None
+
+
+def count_pending_requests(user_id):
+    data = (
+        client().table("access_requests")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("status", "pending")
+        .execute()
+        .data
+    )
+    return len(data)
+
+
+def last_request_at(user_id):
+    data = (
+        client().table("access_requests")
+        .select("requested_at")
+        .eq("user_id", user_id)
+        .order("requested_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return data[0]["requested_at"] if data else None
