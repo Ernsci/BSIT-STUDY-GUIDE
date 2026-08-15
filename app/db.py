@@ -95,6 +95,7 @@ def get_user_requests(user_id):
         client().table("access_requests")
         .select("document_id, kind, status, id")
         .eq("user_id", user_id)
+        .order("id", desc=True)
         .execute()
         .data
     )
