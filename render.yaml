@@ -42,6 +42,18 @@ services:
         value: "1.6"
       - key: RENDER_QUALITY
         value: "85"
+      - key: ADMIN_LOGIN_MAX_ATTEMPTS
+        value: "5"
+      - key: ADMIN_LOGIN_LOCKOUT_SECONDS
+        value: "300"
+      - key: ADMIN_SESSION_HOURS
+        value: "8"
+      - key: MAX_UPLOAD_MB
+        value: "25"
+      - key: LOGIN_MAX_ATTEMPTS
+        value: "10"
+      - key: LOGIN_LOCKOUT_SECONDS
+        value: "300"
       - key: REQUEST_BATCH_MAX
         value: "10"
       - key: OWNER_FACEBOOK_URL

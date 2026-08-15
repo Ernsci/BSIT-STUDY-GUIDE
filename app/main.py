@@ -4,8 +4,10 @@ import json
 import secrets
 import threading
 import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -18,9 +20,123 @@ from . import config, db, discord, renderer, storage
 STATIC_DIR = Path(__file__).parent / "static"
 serializer = URLSafeSerializer(config.ADMIN_SECRET)
 
+
+class _RateLimiter:
+    """In-memory sliding-window rate limiter keyed by (namespace, client_key)."""
+
+    def __init__(self, max_attempts, window_seconds):
+        self.max_attempts = max_attempts
+        self.window_seconds = window_seconds
+        self._lock = threading.Lock()
+        self._hits = defaultdict(deque)
+
+    def hit(self, key):
+        """Record an attempt. Returns True if allowed, False if over the limit."""
+        now = time.monotonic()
+        with self._lock:
+            q = self._hits[key]
+            while q and q[0] <= now - self.window_seconds:
+                q.popleft()
+            if len(q) >= self.max_attempts:
+                return False
+            q.append(now)
+            return True
+
+    def reset(self, key):
+        with self._lock:
+            self._hits.pop(key, None)
+
+
+_login_limiter = _RateLimiter(config.LOGIN_MAX_ATTEMPTS, config.LOGIN_LOCKOUT_SECONDS)
+_admin_login_limiter = _RateLimiter(config.ADMIN_LOGIN_MAX_ATTEMPTS, config.ADMIN_LOGIN_LOCKOUT_SECONDS)
+
+
+class _SessionRevoker:
+    """In-memory denylist of signed session tokens invalidated by logout."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._revoked = set()
+
+    def revoke(self, token):
+        with self._lock:
+            self._revoked.add(token)
+
+    def is_revoked(self, token):
+        with self._lock:
+            if token in self._revoked:
+                return True
+            if len(self._revoked) > 500:
+                self._revoked.clear()
+            return False
+
+
+_admin_sessions = _SessionRevoker()
+
+
+def _client_ip(request: Request):
+    return request.client.host if request.client else "unknown"
+
+
+def _admin_session_token(request: Request):
+    ip = _client_ip(request)
+    ua = (request.headers.get("user-agent") or "")[:200]
+    return serializer.dumps({
+        "sub": "admin",
+        "iat": time.time(),
+        "ip": ip,
+        "ua": ua,
+    })
+
+
+def _is_https(request: Request):
+    fwd = request.headers.get("x-forwarded-proto", "")
+    if fwd == "https":
+        return True
+    return (request.url.scheme == "https") or config.APP_BASE_URL.startswith("https")
+
+
+def require_safe_origin(request: Request):
+    if request.headers.get("x-requested-with"):
+        return True
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    host = request.headers.get("host")
+    if origin:
+        try:
+            o_host = urlparse(origin).netloc
+        except Exception:
+            o_host = ""
+        if o_host != host:
+            raise HTTPException(status_code=403, detail="cross-origin request blocked")
+        return True
+    if referer:
+        try:
+            r_host = urlparse(referer).netloc
+        except Exception:
+            r_host = ""
+        if r_host != host:
+            raise HTTPException(status_code=403, detail="cross-origin request blocked")
+        return True
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        raise HTTPException(status_code=403, detail="missing origin header")
+    return True
+
 app = FastAPI(title="Approval Documents", docs_url=None, redoc_url=None)
 app.mount("/pdfjs", StaticFiles(directory=STATIC_DIR / "pdfjs"), name="pdfjs")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
 
 
 def _hash_password(password):
@@ -39,7 +155,7 @@ def _verify_password(password, stored):
 
 
 def _user_token(user_id):
-    return serializer.dumps({"uid": user_id})
+    return serializer.dumps({"uid": user_id, "iat": time.time()})
 
 
 def _now():
@@ -70,16 +186,28 @@ def require_user(authorization: str = Header(default="")):
     user = db.get_user(uid) if isinstance(uid, int) else None
     if not user:
         raise HTTPException(status_code=401, detail="account not found")
+    if payload.get("iat") is None or time.time() - payload["iat"] > config.ADMIN_SESSION_HOURS * 3600:
+        raise HTTPException(status_code=401, detail="session expired")
     return user
 
 
-def require_admin(admin_session: str = Cookie(default=None)):
+def require_admin(admin_session: str = Cookie(default=None), request: Request = None):
     if not admin_session:
         raise HTTPException(status_code=401, detail="not logged in")
+    if _admin_sessions.is_revoked(admin_session):
+        raise HTTPException(status_code=401, detail="session invalid")
     try:
-        serializer.loads(admin_session)
+        payload = serializer.loads(admin_session)
     except BadSignature:
         raise HTTPException(status_code=401, detail="bad session")
+    if payload.get("sub") != "admin":
+        raise HTTPException(status_code=401, detail="bad session")
+    if payload.get("iat") is None or time.time() - payload["iat"] > config.ADMIN_SESSION_HOURS * 3600:
+        raise HTTPException(status_code=401, detail="session expired")
+    if payload.get("ip") != _client_ip(request):
+        raise HTTPException(status_code=401, detail="session invalid")
+    if payload.get("ua") != (request.headers.get("user-agent") or "")[:200]:
+        raise HTTPException(status_code=401, detail="session invalid")
     return True
 
 
@@ -113,7 +241,9 @@ def site_info():
 
 
 @app.post("/api/register")
-def register(body: RegisterBody):
+def register(body: RegisterBody, request: Request):
+    if not _login_limiter.hit(f"register:{_client_ip(request)}"):
+        raise HTTPException(status_code=429, detail="Too many accounts from this device. Try again later.")
     name = body.name.strip()[:120]
     email = body.email.strip().lower()[:200]
     password = body.password
@@ -123,6 +253,8 @@ def register(body: RegisterBody):
         raise HTTPException(status_code=400, detail="valid email required")
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="password must be at least 6 characters")
+    if len(password) > 128:
+        raise HTTPException(status_code=400, detail="password too long")
     if db.get_user_by_email(email):
         raise HTTPException(status_code=409, detail="email already registered")
     user = db.create_user(name, email, _hash_password(password))
@@ -130,11 +262,14 @@ def register(body: RegisterBody):
 
 
 @app.post("/api/login")
-def login(body: LoginBody):
+def login(body: LoginBody, request: Request):
+    if not _login_limiter.hit(f"login:{_client_ip(request)}"):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
     email = body.email.strip().lower()
     user = db.get_user_by_email(email)
     if not user or not _verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid email or password")
+    _login_limiter.reset(f"login:{_client_ip(request)}")
     return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
 
 
@@ -237,10 +372,28 @@ def viewer_page(token: str):
 
 
 @app.post("/api/admin/login")
-def admin_login(response: Response, password: str = Form(...)):
-    if password != config.ADMIN_PASSWORD:
+def admin_login(response: Response, request: Request, password: str = Form(...)):
+    if not _admin_login_limiter.hit(f"admin:{_client_ip(request)}"):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+    if not hmac.compare_digest(password.encode(), config.ADMIN_PASSWORD.encode()):
         raise HTTPException(status_code=401, detail="wrong password")
-    response.set_cookie("admin_session", serializer.dumps({"sub": "admin"}), httponly=True, max_age=60 * 60 * 24 * 30)
+    _admin_login_limiter.reset(f"admin:{_client_ip(request)}")
+    response.set_cookie(
+        "admin_session",
+        _admin_session_token(request),
+        httponly=True,
+        secure=_is_https(request),
+        samesite="lax",
+        max_age=config.ADMIN_SESSION_HOURS * 3600,
+    )
+    return {"ok": True}
+
+
+@app.post("/api/admin/logout")
+def admin_logout(response: Response, request: Request, admin_session: str = Cookie(default=None)):
+    if admin_session:
+        _admin_sessions.revoke(admin_session)
+    response.delete_cookie("admin_session")
     return {"ok": True}
 
 
@@ -250,13 +403,13 @@ def admin_documents(_: bool = Depends(require_admin)):
 
 
 @app.post("/api/admin/revoke/{doc_id}")
-def admin_revoke(doc_id: int, _: bool = Depends(require_admin)):
+def admin_revoke(doc_id: int, _: bool = Depends(require_admin), __: bool = Depends(require_safe_origin)):
     db.revoke_document(doc_id)
     return {"ok": True}
 
 
 @app.post("/api/admin/delete/{doc_id}")
-def admin_delete(doc_id: int, _: bool = Depends(require_admin)):
+def admin_delete(doc_id: int, _: bool = Depends(require_admin), __: bool = Depends(require_safe_origin)):
     doc = db.get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="document not found")
@@ -267,10 +420,14 @@ def admin_delete(doc_id: int, _: bool = Depends(require_admin)):
 
 
 @app.post("/api/upload")
-def upload_document(document: UploadFile = File(...), _: bool = Depends(require_admin)):
+def upload_document(document: UploadFile = File(...), _: bool = Depends(require_admin), __: bool = Depends(require_safe_origin)):
     if not (document.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are supported. Convert .docx locally first.")
     data = document.file.read()
+    if len(data) > config.MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File exceeds {config.MAX_UPLOAD_MB} MB limit.")
+    if not data[:5] == b"%PDF-":
+        raise HTTPException(status_code=400, detail="File is not a valid PDF.")
     title = Path(document.filename).stem
     token = secrets.token_urlsafe(9)
     pages = renderer.render_pdf(data, ["BRION", token, _now()])

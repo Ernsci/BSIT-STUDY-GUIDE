@@ -103,6 +103,7 @@
   <header class="nav">
     <div class="nav-inner">
       <div class="logo">📚 Documents for <span class="n">Nerds</span><span class="tag">Admin</span></div>
+      <button class="secondary logout" id="logoutBtn" style="display:none;width:auto" onclick="doLogout()">Log out</button>
     </div>
   </header>
 
@@ -140,7 +141,7 @@ function login(e) {
   e.preventDefault();
   const fd = new FormData();
   fd.append('password', document.getElementById('password').value);
-  fetch('/api/admin/login', { method: 'POST', body: fd }).then(async res => {
+  fetch('/api/admin/login', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(async res => {
     if (res.ok) showApp();
     else document.getElementById('loginMsg').textContent = 'Wrong password.';
   });
@@ -151,7 +152,13 @@ function showApp() {
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('docsCard').classList.remove('hidden');
   document.getElementById('statsRow').classList.remove('hidden');
+  document.getElementById('logoutBtn').style.display = 'inline-block';
   loadDocs();
+}
+
+async function doLogout() {
+  await fetch('/api/admin/logout', { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+  location.reload();
 }
 
 function onFilePick(e) {
@@ -170,7 +177,7 @@ async function upload() {
   msg.textContent = 'Uploading and rendering pages…';
   btn.disabled = true;
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const res = await fetch('/api/upload', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     const data = await res.json();
     if (!res.ok) { msg.className = 'msg bad'; msg.textContent = data.detail || 'Upload failed.'; return; }
     const link = `${location.origin}/v/${data.token}`;
@@ -251,13 +258,13 @@ function flash(text) {
 }
 
 async function disableDoc(id) {
-  await fetch(`/api/admin/revoke/${id}`, { method: 'POST' });
+  await fetch(`/api/admin/revoke/${id}`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   loadDocs();
 }
 
 async function deleteDoc(id) {
   if (!confirm('Permanently delete this document and all its data?')) return;
-  await fetch(`/api/admin/delete/${id}`, { method: 'POST' });
+  await fetch(`/api/admin/delete/${id}`, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
   loadDocs();
 }
 
