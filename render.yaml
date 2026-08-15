@@ -28,6 +28,10 @@ services:
         value: "60"
       - key: REQUEST_BATCH_SECONDS
         value: "15"
+      - key: RENDER_SCALE
+        value: "1.6"
+      - key: RENDER_QUALITY
+        value: "85"
       - key: REQUEST_BATCH_MAX
         value: "10"
       - key: OWNER_FACEBOOK_URL

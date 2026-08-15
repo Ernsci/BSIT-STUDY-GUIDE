@@ -463,11 +463,12 @@ def _process_approval(req, doc, chat_id, message_id, decided_by):
     try:
         original = storage.download_original(doc["original_path"])
         lines = ["BRION", f"Viewer: {req['visitor_name']}", _now()]
-        pages = renderer.render_pdf(original, lines)
+        pages, view_pdf = renderer.render_pdf_with_pdf(
+            original, lines, scale=config.RENDER_SCALE, quality=config.RENDER_QUALITY
+        )
         pages_path = f"{doc['token']}/{req['id']}"
         for index, page_data in enumerate(pages, start=1):
             storage.upload_page(f"{pages_path}/{index}.jpg", page_data)
-        view_pdf = renderer.render_pdf_to_pdf(original, lines)
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
         _finalize_message(chat_id, message_id, req, doc, "approve", decided_by)
@@ -480,7 +481,9 @@ def _process_download_approval(req, doc, chat_id, message_id, decided_by):
     try:
         original = storage.download_original(doc["original_path"])
         lines = ["BRION", f"Download: {req['visitor_name']}", _now()]
-        view_pdf = renderer.render_pdf_to_pdf(original, lines)
+        _, view_pdf = renderer.render_pdf_with_pdf(
+            original, lines, scale=config.RENDER_SCALE, quality=config.RENDER_QUALITY
+        )
         pages_path = f"{doc['token']}/{req['id']}"
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
@@ -588,13 +591,25 @@ def handle_update(update):
         telegram.answer_callback(callback["id"], "Preparing download...")
         threading.Thread(target=_process_download_approval, args=(req, doc, callback_chat_id, message_id, decided_by), daemon=True).start()
     elif action == "ddecline":
-        db.set_request_status(req["id"], "declined", decided_by=decided_by)
         telegram.answer_callback(callback["id"], "Declined")
-        _finalize_message(callback_chat_id, message_id, req, doc, "decline", decided_by, kind="download")
+        threading.Thread(
+            target=lambda: (_process_decline(req, doc, callback_chat_id, message_id, decided_by, kind="download")),
+            daemon=True,
+        ).start()
     else:
-        db.set_request_status(req["id"], "declined", decided_by=decided_by)
         telegram.answer_callback(callback["id"], "Declined")
-        _finalize_message(callback_chat_id, message_id, req, doc, "decline", decided_by)
+        threading.Thread(
+            target=lambda: (_process_decline(req, doc, callback_chat_id, message_id, decided_by)),
+            daemon=True,
+        ).start()
+
+
+def _process_decline(req, doc, chat_id, message_id, decided_by, kind="view"):
+    try:
+        db.set_request_status(req["id"], "declined", decided_by=decided_by)
+        _finalize_message(chat_id, message_id, req, doc, "decline", decided_by, kind=kind)
+    except Exception:
+        pass
 
 
 @app.post("/api/telegram/webhook")
