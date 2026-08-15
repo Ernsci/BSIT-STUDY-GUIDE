@@ -28,6 +28,10 @@ services:
         sync: false
       - key: DISCORD_APPLICATION_ID
         sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CHANNEL_ID
+        sync: false
       - key: ANTI_SPAM_MAX_PENDING
         value: "2"
       - key: ANTI_SPAM_MIN_SECONDS

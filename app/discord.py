@@ -130,24 +130,36 @@ def build_batch_embeds_and_components(reqs):
     return embeds, components
 
 
+def _send_payload(payload):
+    """Send a message via the bot (clickable buttons) or fall back to the webhook."""
+    if config.DISCORD_BOT_TOKEN and config.DISCORD_CHANNEL_ID:
+        headers = {"Authorization": f"Bot {config.DISCORD_BOT_TOKEN}"}
+        url = f"{API}/channels/{config.DISCORD_CHANNEL_ID}/messages"
+    else:
+        webhook_id, webhook_token = _webhook_parts()
+        if not webhook_id:
+            print("DISCORD WEBHOOK URL NOT SET")
+            return None
+        headers = {}
+        url = f"{API}/webhooks/{webhook_id}/{webhook_token}"
+    resp = requests.post(url, json=payload, headers=headers, timeout=30)
+    if resp.status_code in (200, 204):
+        return resp.json() if resp.status_code == 200 else {}
+    print(f"DISCORD SEND FAILED: {resp.status_code} {resp.text[:200]}")
+    return None
+
+
 def send_request_embeds(items):
     """Send one Discord message per up-to-5 chunk. Returns [(message_id, request_ids)]."""
-    webhook_id, webhook_token = _webhook_parts()
-    if not webhook_id:
-        print("DISCORD WEBHOOK URL NOT SET")
-        return []
     results = []
     for i in range(0, len(items), 5):
         chunk = items[i:i + 5]
         embeds = [request_embed(it) for it in chunk]
         components = [_button_row(it) for it in chunk]
         payload = {"embeds": embeds, "components": components}
-        resp = requests.post(f"{API}/webhooks/{webhook_id}/{webhook_token}", json=payload, timeout=30)
-        if resp.status_code in (200, 204):
-            data = resp.json() if resp.status_code == 200 else {}
+        data = _send_payload(payload)
+        if data is not None:
             results.append((data.get("id"), [it["request_id"] for it in chunk]))
-        else:
-            print(f"DISCORD SEND FAILED: {resp.status_code} {resp.text[:200]}")
     return results
 
 
