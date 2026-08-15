@@ -3,89 +3,187 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Document control</title>
+<title>Document control · Admin</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px; }
-  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
-  h1 { font-size: 18px; margin: 0 0 16px; }
-  input[type=file] { width: 100%; padding: 10px; border: 1px dashed #d3dce6; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
-  button { padding: 10px 18px; border: 0; border-radius: 8px; background: #1a73e8; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
-  button.secondary { background: #e4e7eb; color: #1f2933; }
-  button.danger { background: #c0392b; }
-  .msg { margin-top: 12px; font-size: 13px; color: #52606d; word-break: break-all; }
-  .msg.good { color: #137333; }
-  .msg.bad { color: #c0392b; }
-  .doc { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #eef1f4; }
-  .doc:last-child { border-bottom: 0; }
-  .doc .title { font-weight: 600; }
-  .doc .meta { font-size: 12px; color: #7b8794; margin-top: 2px; }
-  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
-  .badge.active { background: #e6f4ea; color: #137333; }
-  .badge.revoked { background: #fdecea; color: #c0392b; }
-  #login input[type=password] { width: 100%; padding: 12px 14px; border: 1px solid #d3dce6; border-radius: 8px; font-size: 15px; margin-bottom: 12px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #8b93a3;
+    --accent: #4f8cff;
+    --accent2: #7c5cff;
+    --good: #34c98f;
+    --warn: #f5b942;
+    --bad: #ff5d5d;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  .nav { background: rgba(15,17,21,.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .nav-inner { max-width: 900px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-size: 18px; font-weight: 800; letter-spacing: .5px; }
+  .logo .n { color: var(--accent); }
+  .logo .tag { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 8px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; vertical-align: middle; }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { font-size: 15px; font-weight: 800; letter-spacing: .3px; margin-bottom: 14px; }
+  .panel h2 .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
+
+  /* Login */
+  #login { max-width: 420px; margin: 6vh auto 0; text-align: center; }
+  #login .shield { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; }
+  #login h2 { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+  #login p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  #login form { text-align: left; }
+
+  input[type=password], input[type=file] { width: 100%; padding: 11px 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 10px; outline: none; transition: border-color .15s; }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+
+  input[type=file] { padding: 22px 14px; border: 1.5px dashed var(--border); background: var(--panel2); border-radius: 12px; cursor: pointer; font-size: 13px; color: var(--muted); text-align: center; }
+  input[type=file]::file-selector-button { display: none; }
+  input[type=file].has-file { border-color: var(--good); color: var(--good); }
+
+  button { padding: 11px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+  button:hover { opacity: .9; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.secondary { width: auto; padding: 8px 14px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+  button.danger { width: auto; padding: 8px 14px; font-size: 13px; background: rgba(255,93,93,.12); border: 1px solid rgba(255,93,93,.4); color: var(--bad); }
+
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row button { flex: 1; }
+
+  .msg { margin-top: 12px; font-size: 13px; color: var(--muted); word-break: break-all; }
+  .msg.good { color: var(--good); }
+  .msg.bad { color: var(--bad); }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .stat .num { font-size: 26px; font-weight: 800; line-height: 1.1; }
+  .stat .label { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+  .stat.active .num { color: var(--good); }
+  .stat.revoked .num { color: var(--bad); }
+
+  /* Docs */
+  .doc { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+  .doc:first-of-type { padding-top: 0; }
+  .doc:last-of-type { border-bottom: 0; padding-bottom: 0; }
+  .doc .title { font-weight: 700; font-size: 15px; }
+  .doc .meta { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .doc .meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .doc .meta a:hover { text-decoration: underline; }
+  .doc .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px; }
+  .badge.active { background: rgba(52,201,143,.15); color: var(--good); }
+  .badge.revoked { background: rgba(255,93,93,.15); color: var(--bad); }
+
+  .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
+
   .hidden { display: none; }
+
+  @media (max-width: 640px) {
+    .nav-inner { padding: 12px 16px; }
+    .wrap { padding: 16px 14px 40px; }
+    .stats { grid-template-columns: 1fr; }
+    .doc { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .doc .actions { align-self: stretch; justify-content: flex-end; }
+    .doc .actions .secondary, .doc .actions .danger { flex: 1; text-align: center; }
+    #login { margin-top: 4vh; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card" id="login">
-    <h1>Document control</h1>
-    <input type="password" id="password" placeholder="Admin password">
-    <button onclick="login()">Log in</button>
-    <div class="msg bad" id="loginMsg"></div>
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="logo">📚 Documents for <span class="n">Nerds</span><span class="tag">Admin</span></div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="panel" id="login">
+      <div class="shield">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5.25 3.4 10.1 8 11 4.6-.9 8-5.75 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
+      </div>
+      <h2>Document control</h2>
+      <p>Enter the admin password to manage protected documents.</p>
+      <form onsubmit="login(event)">
+        <input type="password" id="password" placeholder="Admin password" autofocus>
+        <button type="submit">Log in</button>
+      </form>
+      <div class="msg bad" id="loginMsg"></div>
+    </div>
+
+    <div class="panel hidden" id="app">
+      <h2>Upload a PDF <span class="sub">Protected &amp; watermarked</span></h2>
+      <input type="file" id="file" accept=".pdf" onchange="onFilePick(event)">
+      <button id="uploadBtn" onclick="upload()">Upload &amp; protect</button>
+      <div class="msg" id="uploadMsg"></div>
+    </div>
+
+    <div class="stats hidden" id="statsRow"></div>
+
+    <div class="panel hidden" id="docsCard">
+      <h2>Your documents <span class="sub">Share each link to give access</span></h2>
+      <div id="docs"></div>
+    </div>
   </div>
 
-  <div class="card hidden" id="app">
-    <h1>Upload a PDF</h1>
-    <input type="file" id="file" accept=".pdf">
-    <button onclick="upload()">Upload &amp; protect</button>
-    <div class="msg" id="uploadMsg"></div>
-  </div>
-
-  <div class="card hidden" id="docsCard">
-    <h1>Your documents</h1>
-    <div id="docs"></div>
-  </div>
-</div>
 <script>
-async function login() {
+function login(e) {
+  e.preventDefault();
   const fd = new FormData();
   fd.append('password', document.getElementById('password').value);
-  const res = await fetch('/api/admin/login', { method: 'POST', body: fd });
-  if (res.ok) {
-    showApp();
-  } else {
-    document.getElementById('loginMsg').textContent = 'Wrong password.';
-  }
+  fetch('/api/admin/login', { method: 'POST', body: fd }).then(async res => {
+    if (res.ok) showApp();
+    else document.getElementById('loginMsg').textContent = 'Wrong password.';
+  });
 }
 
 function showApp() {
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('docsCard').classList.remove('hidden');
+  document.getElementById('statsRow').classList.remove('hidden');
   loadDocs();
+}
+
+function onFilePick(e) {
+  const el = document.getElementById('file');
+  el.classList.toggle('has-file', el.files.length > 0);
 }
 
 async function upload() {
   const fileEl = document.getElementById('file');
   if (!fileEl.files.length) return;
   const msg = document.getElementById('uploadMsg');
+  const btn = document.getElementById('uploadBtn');
   const fd = new FormData();
   fd.append('document', fileEl.files[0]);
   msg.className = 'msg';
-  msg.textContent = 'Uploading and rendering...';
+  msg.textContent = 'Uploading and rendering pages…';
+  btn.disabled = true;
   try {
     const res = await fetch('/api/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (!res.ok) { msg.className = 'msg bad'; msg.textContent = data.detail || 'Upload failed.'; return; }
+    const link = `${location.origin}/v/${data.token}`;
     msg.className = 'msg good';
-    msg.textContent = `Protected. Share this link: ${location.origin}/v/${data.token}`;
+    msg.innerHTML = `Protected. Share this link: <a href="${link}" target="_blank" style="color:var(--good)">${link}</a>`;
+    fileEl.value = '';
+    fileEl.classList.remove('has-file');
     loadDocs();
   } catch (e) {
     msg.className = 'msg bad';
     msg.textContent = 'Upload failed.';
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -95,7 +193,15 @@ async function loadDocs() {
   const docs = await res.json();
   const el = document.getElementById('docs');
   el.innerHTML = '';
-  if (!docs.length) { el.innerHTML = '<div class="msg">No documents yet.</div>'; return; }
+  if (!docs.length) { el.innerHTML = '<div class="empty">No documents yet — upload one above.</div>'; return; }
+
+  const active = docs.filter(d => d.status === 'active').length;
+  const revoked = docs.filter(d => d.status !== 'active').length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><div class="num">${docs.length}</div><div class="label">Total documents</div></div>
+    <div class="stat active"><div class="num">${active}</div><div class="label">Active</div></div>
+    <div class="stat revoked"><div class="num">${revoked}</div><div class="label">Revoked</div></div>`;
+
   for (const d of docs) {
     const row = document.createElement('div');
     row.className = 'doc';
@@ -104,12 +210,13 @@ async function loadDocs() {
     row.innerHTML = `
       <div>
         <div class="title">${d.title}</div>
-        <div class="meta">${d.page_count} pages · link: ${link}</div>
+        <div class="meta">${d.page_count} pages · ${link}</div>
       </div>
-      <div>
+      <div class="actions">
         ${badge}
         <span id="actions-${d.id}">
           ${d.status === 'active' ? '<button class="secondary" onclick="toggleActions(' + d.id + ')">Revoke</button>' : ''}
+          <button class="secondary" onclick="copyLink('${d.token}')">Copy link</button>
         </span>
         <span id="confirm-${d.id}" class="hidden">
           <button class="secondary" onclick="disableDoc(${d.id})">Disable</button>
@@ -123,6 +230,24 @@ async function loadDocs() {
 function toggleActions(id) {
   document.getElementById('actions-' + id).classList.add('hidden');
   document.getElementById('confirm-' + id).classList.remove('hidden');
+}
+
+function copyLink(token) {
+  const link = `${location.origin}/v/${token}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link).then(() => flash('Link copied to clipboard.')).catch(() => flash(link));
+  } else {
+    flash(link);
+  }
+}
+
+let flashTimer = null;
+function flash(text) {
+  const el = document.getElementById('uploadMsg');
+  el.className = 'msg good';
+  el.textContent = text;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.textContent = ''; }, 2500);
 }
 
 async function disableDoc(id) {
