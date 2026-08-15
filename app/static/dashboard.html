@@ -239,6 +239,9 @@ function showView() {
   if (auth) {
     document.getElementById('acctName').textContent = auth.name;
     loadDocs();
+    startDocsPolling();
+  } else {
+    stopDocsPolling();
   }
 }
 
@@ -283,23 +286,37 @@ document.getElementById('btnRegister').onclick = () => {
 
 function logout() {
   localStorage.removeItem(AUTH_KEY);
+  stopDocsPolling();
   showView();
 }
 
-async function loadDocs() {
+async function loadDocs(silent) {
   const el = document.getElementById('docs');
-  el.innerHTML = '<div class="empty">Loading…</div>';
+  if (!silent) el.innerHTML = '<div class="empty">Loading…</div>';
   try {
     const res = await fetch('/api/my/documents', { headers: authHeaders() });
     if (res.status === 401) { logout(); return; }
-    if (!res.ok) { el.innerHTML = '<div class="empty">Could not load documents.</div>'; return; }
+    if (!res.ok) { if (!silent) el.innerHTML = '<div class="empty">Could not load documents.</div>'; return; }
     const docs = await res.json();
-    el.innerHTML = '';
+    if (!silent) el.innerHTML = '';
     if (!docs.length) { el.innerHTML = '<div class="empty">No documents available yet.</div>'; return; }
-    for (const d of docs) renderDoc(el, d);
+    const rows = document.createElement('div');
+    for (const d of docs) renderDoc(rows, d);
+    if (el.innerHTML !== rows.innerHTML) el.innerHTML = rows.innerHTML;
   } catch (e) {
-    el.innerHTML = '<div class="empty">Could not load documents.</div>';
+    if (!silent) el.innerHTML = '<div class="empty">Could not load documents.</div>';
   }
+}
+
+let docsTimer = null;
+function startDocsPolling() {
+  if (docsTimer) return;
+  docsTimer = setInterval(() => {
+    if (getAuth()) loadDocs(true);
+  }, 4000);
+}
+function stopDocsPolling() {
+  if (docsTimer) { clearInterval(docsTimer); docsTimer = null; }
 }
 
 function statusBadge(status) {
