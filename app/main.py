@@ -549,7 +549,10 @@ async def discord_interactions(request: Request):
     raw_body = await request.body()
     signature = request.headers.get("X-Signature-Ed25519", "")
     timestamp = request.headers.get("X-Signature-Timestamp", "")
+    if not config.DISCORD_PUBLIC_KEY:
+        print("DISCORD: DISCORD_PUBLIC_KEY is not set — Discord endpoint verification will fail.")
     if not discord.verify_signature(raw_body, signature, timestamp):
+        print(f"DISCORD: signature verification FAILED (pubkey set: {bool(config.DISCORD_PUBLIC_KEY)})")
         raise HTTPException(status_code=401, detail="invalid signature")
     payload = json.loads(raw_body)
     if payload.get("type") == 1:
