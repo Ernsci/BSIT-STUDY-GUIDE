@@ -22,6 +22,12 @@ services:
         sync: false
       - key: ADMIN_URL_PATH
         sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+      - key: DISCORD_PUBLIC_KEY
+        sync: false
+      - key: DISCORD_APPLICATION_ID
+        sync: false
       - key: ANTI_SPAM_MAX_PENDING
         value: "2"
       - key: ANTI_SPAM_MIN_SECONDS

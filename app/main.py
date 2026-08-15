@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import secrets
 import threading
 import time
@@ -12,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import BaseModel
 
-from . import config, db, renderer, storage, telegram
+from . import config, db, discord, renderer, storage
 
 STATIC_DIR = Path(__file__).parent / "static"
 serializer = URLSafeSerializer(config.ADMIN_SECRET)
@@ -159,8 +160,8 @@ def _enforce_antispam(user_id):
 
 
 class _NotificationBatcher:
-    """Groups incoming request notifications into a single Telegram message
-    so a burst of traffic (5-10 people) doesn't flood the owner's chat."""
+    """Groups incoming request notifications into a single Discord embed
+    so a burst of traffic (5-10 people) doesn't flood the owner's channel."""
 
     def __init__(self, flush_seconds, max_items):
         self.flush_seconds = flush_seconds
@@ -190,28 +191,20 @@ class _NotificationBatcher:
             self._timer = None
         if not items:
             return
-        by_chat = {}
-        for it in items:
-            by_chat.setdefault(it["chat_id"], []).append(it)
-        for chat_id, group in by_chat.items():
-            try:
-                result = telegram.send_batch_requests(chat_id, group)
-                if result.get("ok"):
-                    message_id = (result.get("result") or {}).get("message_id")
-                    if message_id:
-                        db.set_request_batch_message([it["request_id"] for it in group], message_id)
-                else:
-                    print(f"TELEGRAM SEND FAILED: {result.get('description')} chat_id={chat_id}")
-            except Exception as exc:
-                print(f"TELEGRAM SEND EXCEPTION: {exc} chat_id={chat_id}")
+        try:
+            results = discord.send_request_embeds(items)
+            for message_id, request_ids in results:
+                if message_id:
+                    db.set_request_batch_message(request_ids, message_id)
+        except Exception as exc:
+            print(f"DISCORD SEND EXCEPTION: {exc}")
 
 
 _batcher = _NotificationBatcher(config.REQUEST_BATCH_SECONDS, config.REQUEST_BATCH_MAX)
 
 
-def _enqueue_notification(chat_id, kind, title, name, request_id, ip):
+def _enqueue_notification(kind, title, name, request_id, ip):
     _batcher.enqueue({
-        "chat_id": chat_id,
         "kind": kind,
         "title": title,
         "name": name,
@@ -297,9 +290,8 @@ def new_request(body: RequestBody, request: Request, user: dict = Depends(requir
     client_ip = request.client.host if request.client else None
     _enforce_antispam(user["id"])
     req = db.create_access_request(doc["id"], name, ip=client_ip, user_id=user["id"])
-    chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
-    if chat_id:
-        _enqueue_notification(chat_id, "view", doc["title"], name, req["id"], client_ip or "")
+    if config.DISCORD_WEBHOOK_URL:
+        _enqueue_notification("view", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
 
@@ -312,9 +304,8 @@ def new_download_request(body: RequestBody, request: Request, user: dict = Depen
     client_ip = request.client.host if request.client else None
     _enforce_antispam(user["id"])
     req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download", user_id=user["id"])
-    chat_id = config.TELEGRAM_CHAT_ID or db.get_owner_chat_id()
-    if chat_id:
-        _enqueue_notification(chat_id, "download", doc["title"], name, req["id"], client_ip or "")
+    if config.DISCORD_WEBHOOK_URL:
+        _enqueue_notification("download", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
 
@@ -459,7 +450,7 @@ def serve_pdf(token: str, request_id: int, request: Request):
     return Response(content=data, media_type="application/pdf")
 
 
-def _process_approval(req, doc, chat_id, message_id, decided_by):
+def _process_approval(req, doc, edit_spec, decided_by):
     try:
         original = storage.download_original(doc["original_path"])
         lines = ["BRION", f"Viewer: {req['visitor_name']}", _now()]
@@ -471,13 +462,13 @@ def _process_approval(req, doc, chat_id, message_id, decided_by):
             storage.upload_page(f"{pages_path}/{index}.jpg", page_data)
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
-        _finalize_message(chat_id, message_id, req, doc, "approve", decided_by)
+        _finalize_message(edit_spec, req, doc, "approve", decided_by)
     except Exception as exc:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
-        _finalize_message(chat_id, message_id, req, doc, "decline", decided_by)
+        _finalize_message(edit_spec, req, doc, "decline", decided_by)
 
 
-def _process_download_approval(req, doc, chat_id, message_id, decided_by):
+def _process_download_approval(req, doc, edit_spec, decided_by):
     try:
         original = storage.download_original(doc["original_path"])
         lines = ["BRION", f"Download: {req['visitor_name']}", _now()]
@@ -487,152 +478,90 @@ def _process_download_approval(req, doc, chat_id, message_id, decided_by):
         pages_path = f"{doc['token']}/{req['id']}"
         storage.upload_page(f"{pages_path}/view.pdf", view_pdf)
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
-        _finalize_message(chat_id, message_id, req, doc, "approve", decided_by, kind="download")
+        _finalize_message(edit_spec, req, doc, "approve", decided_by, kind="download")
     except Exception as exc:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
-        _finalize_message(chat_id, message_id, req, doc, "decline", decided_by, kind="download")
+        _finalize_message(edit_spec, req, doc, "decline", decided_by, kind="download")
 
 
-def _rebuild_batch_message(chat_id, message_id):
+def _rebuild_batch_message(edit_spec):
     """Re-render a grouped notification message from current DB state.
-    Decided requests become plain text; still-pending ones keep their buttons."""
+    Decided requests become plain embeds; still-pending ones keep their buttons."""
+    message_id = edit_spec.get("message_id")
+    if not message_id:
+        return False
     reqs = db.get_requests_by_batch(message_id)
     if not reqs:
         return False
-    docs = {}
-    for r in reqs:
-        if r["document_id"] not in docs:
-            docs[r["document_id"]] = db.get_document(r["document_id"])
-    lines = []
-    keyboard = []
-    pending_count = 0
-    for idx, r in enumerate(reqs, 1):
-        doc = docs.get(r["document_id"]) or {}
-        title = doc.get("title", "unknown")
-        name = r["visitor_name"]
-        ip = r.get("ip") or "Unknown"
-        kind = r.get("kind") or "view"
-        if r["status"] == "pending":
-            pending_count += 1
-            label = "Download Request" if kind == "download" else "Access Request"
-            lines.append(
-                f"\n{idx}. {label}\n"
-                f"👤 Name: {name}\n"
-                f"📄 File: {title}\n"
-                f"🌐 IP: {ip}"
-            )
-            if kind == "download":
-                keyboard.append([
-                    {"text": f"⬇️ Approve {idx}", "callback_data": f"dapprove:{r['id']}"},
-                    {"text": f"❌ Decline {idx}", "callback_data": f"ddecline:{r['id']}"},
-                ])
-            else:
-                keyboard.append([
-                    {"text": f"✅ Approve {idx}", "callback_data": f"approve:{r['id']}"},
-                    {"text": f"❌ Decline {idx}", "callback_data": f"decline:{r['id']}"},
-                ])
-        else:
-            mark = "✅" if r["status"] == "approved" else "❌"
-            by = r.get("decided_by") or "Unknown"
-            lines.append(f"\n{idx}. {mark} Decided · {name} · {title} · by {by}")
-    head = f"📥 {len(reqs)} request{'s' if len(reqs) != 1 else ''} · {pending_count} waiting"
-    text = "\n".join([head] + lines)
-    reply_markup = {"inline_keyboard": keyboard} if keyboard else None
-    telegram.edit_message(chat_id, message_id, text, reply_markup=reply_markup)
+    embeds, components = discord.build_batch_embeds_and_components(reqs)
+    discord.edit_message(edit_spec, embeds, components)
     return True
 
 
-def _finalize_message(chat_id, message_id, req, doc, action, decided_by, kind="view"):
+def _finalize_message(edit_spec, req, doc, action, decided_by, kind="view"):
     """After a decision, rebuild the batch if this request was part of one,
-    otherwise replace with the single-request decision card."""
+    otherwise replace with the single-request decision embed."""
     try:
-        if _rebuild_batch_message(chat_id, message_id):
+        if _rebuild_batch_message(edit_spec):
             return
     except Exception:
         pass
-    telegram.edit_message(
-        chat_id,
-        message_id,
-        telegram.format_decision(doc["title"], req["visitor_name"], req.get("ip"), action, decided_by, kind=kind),
-        reply_markup={"inline_keyboard": []},
-    )
+    discord.edit_message(edit_spec, [discord.decision_embed(doc, req, action, decided_by, kind=kind)], [])
 
 
-def handle_update(update):
-    message = update.get("message") or {}
-    chat = message.get("chat") or {}
-    chat_id = chat.get("id")
-    text = (message.get("text") or "").strip()
-
-    if text == "/start" and chat_id is not None:
-        db.set_owner_chat_id(chat_id)
-        telegram.send_text(chat_id, "Registered as approval destination. New access requests will appear here.")
-    elif text == "/groupid" and chat_id is not None:
-        telegram.send_text(chat_id, f"Chat ID: {chat_id}")
-
-    callback = update.get("callback_query")
-    if not callback:
-        return
-    data = callback.get("data", "")
-    callback_chat_id = callback["message"]["chat"]["id"]
-    message_id = callback["message"]["message_id"]
-    action, _, rid = data.partition(":")
-    req = db.get_access_request(int(rid)) if rid.isdigit() else None
-    if not req:
-        telegram.edit_message(callback_chat_id, message_id, "Request not found.")
-        return
-    doc = db.get_document(req["document_id"])
-    user = callback.get("from") or {}
-    decided_by = " ".join(filter(None, [user.get("first_name"), user.get("last_name")])) or user.get("username") or "Unknown"
-    if action == "approve":
-        telegram.answer_callback(callback["id"], "Approving...")
-        threading.Thread(target=_process_approval, args=(req, doc, callback_chat_id, message_id, decided_by), daemon=True).start()
-    elif action == "dapprove":
-        telegram.answer_callback(callback["id"], "Preparing download...")
-        threading.Thread(target=_process_download_approval, args=(req, doc, callback_chat_id, message_id, decided_by), daemon=True).start()
-    elif action == "ddecline":
-        telegram.answer_callback(callback["id"], "Declined")
-        threading.Thread(
-            target=lambda: (_process_decline(req, doc, callback_chat_id, message_id, decided_by, kind="download")),
-            daemon=True,
-        ).start()
-    else:
-        telegram.answer_callback(callback["id"], "Declined")
-        threading.Thread(
-            target=lambda: (_process_decline(req, doc, callback_chat_id, message_id, decided_by)),
-            daemon=True,
-        ).start()
-
-
-def _process_decline(req, doc, chat_id, message_id, decided_by, kind="view"):
+def _process_decline(req, doc, edit_spec, decided_by, kind="view"):
     try:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
-        _finalize_message(chat_id, message_id, req, doc, "decline", decided_by, kind=kind)
+        _finalize_message(edit_spec, req, doc, "decline", decided_by, kind=kind)
     except Exception:
         pass
 
 
-@app.post("/api/telegram/webhook")
-async def telegram_webhook(request: Request):
-    if config.TELEGRAM_WEBHOOK_SECRET:
-        supplied = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        if supplied != config.TELEGRAM_WEBHOOK_SECRET:
-            raise HTTPException(status_code=403, detail="invalid webhook secret")
-    update = await request.json()
-    handle_update(update)
-    return {"ok": True}
+def _handle_discord_component(interaction, edit_spec):
+    data = interaction.get("data") or {}
+    custom_id = data.get("custom_id") or ""
+    user = (interaction.get("member") or {}).get("user") or interaction.get("user") or {}
+    decided_by = (
+        user.get("global_name")
+        or user.get("username")
+        or " ".join(filter(None, [user.get("first_name"), user.get("last_name")]))
+        or "Unknown"
+    )
+    action, _, rid = custom_id.partition(":")
+    req = db.get_access_request(int(rid)) if rid.isdigit() else None
+    if not req:
+        return
+    doc = db.get_document(req["document_id"])
+    if action == "approve":
+        threading.Thread(target=_process_approval, args=(req, doc, edit_spec, decided_by), daemon=True).start()
+    elif action == "dapprove":
+        threading.Thread(target=_process_download_approval, args=(req, doc, edit_spec, decided_by), daemon=True).start()
+    elif action == "ddecline":
+        threading.Thread(
+            target=_process_decline, args=(req, doc, edit_spec, decided_by, "download"), daemon=True
+        ).start()
+    else:
+        threading.Thread(target=_process_decline, args=(req, doc, edit_spec, decided_by), daemon=True).start()
 
 
-def _polling_loop():
-    offset = 0
-    while True:
-        try:
-            updates = telegram.get_updates(offset=offset)
-            for update in updates:
-                handle_update(update)
-                offset = update["update_id"] + 1
-        except Exception:
-            time.sleep(3)
+@app.post("/api/discord/interactions")
+async def discord_interactions(request: Request):
+    raw_body = await request.body()
+    signature = request.headers.get("X-Signature-Ed25519", "")
+    timestamp = request.headers.get("X-Signature-Timestamp", "")
+    if not discord.verify_signature(raw_body, signature, timestamp):
+        raise HTTPException(status_code=401, detail="invalid signature")
+    payload = json.loads(raw_body)
+    if payload.get("type") == 1:
+        return {"type": 1}
+    if payload.get("type") == 3:
+        edit_spec = {
+            "app_id": config.DISCORD_APPLICATION_ID,
+            "interaction_token": payload.get("token"),
+            "message_id": (payload.get("message") or {}).get("id"),
+        }
+        _handle_discord_component(payload, edit_spec)
+    return {"type": 6, "data": {"flags": 64}}
 
 
 @app.on_event("startup")
@@ -641,5 +570,3 @@ def startup():
         storage.ensure_buckets()
     except Exception:
         pass
-    if config.TELEGRAM_POLLING:
-        threading.Thread(target=_polling_loop, daemon=True).start()
