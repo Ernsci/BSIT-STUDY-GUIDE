@@ -249,6 +249,7 @@ const authStatusEl = document.getElementById('authStatus');
 let pollTimer = null;
 let renderedPdf = null;
 let dlPollTimer = null;
+let isOpen = false;
 
 const AUTH_KEY = 'brion_auth';
 
@@ -267,6 +268,14 @@ fetch('/api/site').then(r => r.json()).then(s => {
       setAuth({ token: data.token, name: data.name });
       showAuthUI();
     });
+  }
+}).catch(() => {});
+
+fetch('/api/documents').then(r => r.json()).then(docs => {
+  const d = docs.find(x => x.token === token);
+  if (d && d.access_mode === 'open') {
+    isOpen = true;
+    document.getElementById('gateDesc').textContent = 'This document is open — no approval needed. Log in to view and download.';
   }
 }).catch(() => {});
 
@@ -334,14 +343,13 @@ async function resumeIfApproved() {
     if (res.status === 401) { logout(); return; }
     if (!res.ok) return;
     const s = await res.json();
+    isOpen = s.open_access === true;
     const gateDesc = document.getElementById('gateDesc');
     const btnEl = document.getElementById('btn');
-    if (s.open_access) {
-      gateDesc.textContent = 'This document is open — no approval needed. Log in to view and download.';
-      btnEl.textContent = 'Open document';
+    if (isOpen) {
+      gateDesc.textContent = 'This document is open — no approval needed.';
     } else {
       gateDesc.textContent = 'This document is access-controlled. Create an account or log in to request access from the owner.';
-      btnEl.textContent = 'Request access';
     }
     if (s.view_approved && s.view_pdf) {
       clearInterval(pollTimer);
@@ -350,7 +358,7 @@ async function resumeIfApproved() {
         document.getElementById('dlStatus').textContent = 'Your file is ready.';
         document.getElementById('dlArea').innerHTML = `<a class="dl" href="#" onclick="downloadPdf('${s.download_url}'); return false;">Download PDF</a>`;
       } else if (s.pending_download) {
-        document.getElementById('dlStatus').textContent = 'Waiting for owner approval to download…';
+        document.getElementById('dlStatus').textContent = isOpen ? 'Preparing your download…' : 'Waiting for owner approval to download…';
         document.getElementById('dlArea').innerHTML = '<button class="dl" disabled>Waiting…</button>';
         dlPollTimer = setInterval(() => pollDownload(s.pending_download), 4000);
         pollDownload(s.pending_download);
@@ -359,6 +367,13 @@ async function resumeIfApproved() {
       }
       return;
     }
+    if (isOpen) {
+      statusEl.textContent = 'Opening document…';
+      btnEl.disabled = true;
+      openDocument();
+      return;
+    }
+    btnEl.textContent = 'Request access';
     if (s.pending_view) {
       statusEl.textContent = 'Waiting for the owner to approve your request...';
       pollTimer = setInterval(() => poll(s.pending_view), 4000);
@@ -409,9 +424,11 @@ function logout() {
 }
 
 const btn = document.getElementById('btn');
-btn.onclick = async () => {
+btn.onclick = () => openDocument();
+
+async function openDocument() {
   btn.disabled = true;
-  statusEl.textContent = 'Requesting access...';
+  statusEl.textContent = isOpen ? 'Opening document…' : 'Requesting access...';
   try {
     const res = await fetch('/api/request', {
       method: 'POST',
@@ -426,14 +443,14 @@ btn.onclick = async () => {
       return;
     }
     const data = await res.json();
-    statusEl.textContent = 'Waiting for the owner to approve your request...';
+    statusEl.textContent = isOpen ? 'Opening document…' : 'Waiting for the owner to approve your request...';
     pollTimer = setInterval(() => poll(data.request_id), 4000);
     poll(data.request_id);
   } catch (e) {
     statusEl.textContent = 'Something went wrong. Try again.';
     btn.disabled = false;
   }
-};
+}
 
 async function poll(requestId) {
   try {
@@ -519,14 +536,14 @@ async function requestDownload() {
       headers: authHeaders(),
       body: JSON.stringify({ token })
     });
-    if (!res.ok) { dlStatus.textContent = 'Download request failed.'; renderDlButton(); return; }
+    if (!res.ok) { dlStatus.textContent = isOpen ? 'Download failed.' : 'Download request failed.'; renderDlButton(); return; }
     const data = await res.json();
-    dlStatus.textContent = 'Waiting for owner approval to download…';
-    dlArea.innerHTML = '<button class="dl" disabled>Waiting…</button>';
+    dlStatus.textContent = isOpen ? 'Preparing your download…' : 'Waiting for owner approval to download…';
+    dlArea.innerHTML = '<button class="dl" disabled>Preparing…</button>';
     dlPollTimer = setInterval(() => pollDownload(data.request_id), 4000);
     pollDownload(data.request_id);
   } catch (e) {
-    dlStatus.textContent = 'Download request failed.';
+    dlStatus.textContent = isOpen ? 'Download failed.' : 'Download request failed.';
     renderDlButton();
   }
 }
