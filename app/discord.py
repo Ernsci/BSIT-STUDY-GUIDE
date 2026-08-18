@@ -14,7 +14,7 @@ COLOR_GREEN = 0x57F287
 COLOR_RED = 0xED4245
 
 APP_NAME = "Documents for Nerds"
-APP_ICON = "https://approval-docs.onrender.com/static/dashboard.html"
+APP_ICON = "https://bsit-study-guide.onrender.com/static/dashboard.html"
 
 
 def is_configured():
