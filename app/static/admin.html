@@ -22,7 +22,8 @@
   }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh;
+    background: var(--bg); color: var(--text); line-height: 1.5;
+    height: 100vh; overflow: hidden; display: flex; flex-direction: column;
   }
 
   .bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: radial-gradient(55% 45% at 85% -5%, rgba(91,140,255,.2), transparent 60%), radial-gradient(45% 40% at 5% 0%, rgba(139,92,255,.16), transparent 60%), var(--bg); }
@@ -42,22 +43,26 @@
   .logo .n { color: var(--accent); }
   .logo .tag { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: rgba(255,255,255,.04); vertical-align: middle; }
 
-  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 22px 60px; }
+  .wrap {
+    max-width: 980px; margin: 0 auto; padding: 18px 22px;
+    flex: 1; width: 100%; display: flex; overflow-y: auto;
+  }
+  .shell { margin: auto; width: 100%; }
 
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
-  .panel + .panel { margin-top: 20px; }
-  .panel h2 { font-size: 15px; font-weight: 800; letter-spacing: .3px; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  .panel + .panel { margin-top: 12px; }
+  .panel h2 { font-size: 15px; font-weight: 800; letter-spacing: .3px; margin-bottom: 12px; }
   .panel h2 .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
 
-  #login { max-width: 460px; margin: 7vh auto 0; text-align: center; }
-  #login .shield { width: 60px; height: 60px; margin: 0 auto 16px; border-radius: 18px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(91,140,255,.35); animation: popIn .5s .1s cubic-bezier(.22,.68,.36,1) both; }
-  #login h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -.4px; }
-  #login p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  #login { max-width: 460px; text-align: center; }
+  #login .shield { width: 54px; height: 54px; margin: 0 auto 12px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(91,140,255,.35); animation: popIn .5s .1s cubic-bezier(.22,.68,.36,1) both; }
+  #login h2 { font-size: 20px; font-weight: 800; margin-bottom: 4px; letter-spacing: -.4px; }
+  #login p { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
   #login form { text-align: left; }
 
   input[type=password], input[type=file], input[type=text] {
-    width: 100%; padding: 13px 15px; background: rgba(255,255,255,.05); border: 1px solid var(--border);
-    border-radius: 12px; font-size: 15px; color: var(--text); margin-bottom: 12px; outline: none;
+    width: 100%; padding: 11px 14px; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+    border-radius: 12px; font-size: 15px; color: var(--text); margin-bottom: 10px; outline: none;
     transition: border-color .2s, box-shadow .2s, background .2s;
   }
   input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,140,255,.15); background: rgba(255,255,255,.07); }
@@ -68,7 +73,7 @@
   input[type=file].has-file { border-color: var(--good); color: var(--good); background: rgba(52,211,153,.06); }
 
   button {
-    padding: 13px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    padding: 11px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2));
     color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; position: relative; overflow: hidden;
     box-shadow: 0 8px 22px rgba(91,140,255,.35); transition: transform .18s, box-shadow .25s;
   }
@@ -125,13 +130,12 @@
   }
 
   @media (max-width: 640px) {
-    .nav-inner { padding: 14px 16px; }
-    .wrap { padding: 20px 16px 48px; }
+    .nav-inner { padding: 12px 16px; }
+    .wrap { padding: 14px 16px; }
     .stats { grid-template-columns: 1fr; }
     .doc { flex-direction: column; align-items: flex-start; gap: 10px; }
     .doc .actions { align-self: stretch; justify-content: flex-end; }
     .doc .actions .secondary, .doc .actions .danger { flex: 1; text-align: center; }
-    #login { margin-top: 4vh; }
   }
 </style>
 </head>
@@ -149,6 +153,7 @@
   </header>
 
   <div class="wrap">
+    <div class="shell">
     <div class="panel anim" id="login">
       <div class="shield">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5.25 3.4 10.1 8 11 4.6-.9 8-5.75 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
@@ -182,6 +187,7 @@
       <button id="resetBtn" onclick="makeResetLink()">Generate reset link</button>
       <div class="msg" id="resetMsg"></div>
       <div class="msg" id="resetOut"></div>
+    </div>
     </div>
   </div>
 
