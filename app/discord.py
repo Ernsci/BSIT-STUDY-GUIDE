@@ -186,6 +186,27 @@ def send_guide_request(name, title, note, guide_id):
     return _send_payload(payload)
 
 
+def download_log_embed(email, doc_title, ip, request_id=None):
+    """Embed logged when a user actually downloads a document PDF."""
+    embed = _base_embed("Document Downloaded", COLOR_GREEN, "📥")
+    embed["description"] = f"**{email or 'Unknown'}** downloaded **{doc_title}**."
+    fields = [
+        {"name": "📧 Email", "value": email or "Unknown", "inline": True},
+        {"name": "📄 Document", "value": doc_title, "inline": True},
+        {"name": "🖥️ IP Address", "value": _ip_value(ip), "inline": True},
+        {"name": "🕒 Time", "value": datetime.now(timezone.utc).strftime("%b %d, %Y · %I:%M:%S %p UTC"), "inline": True},
+    ]
+    if request_id:
+        fields.append({"name": "🧾 Request #", "value": f"`{request_id}`", "inline": True})
+    embed["fields"] = fields
+    embed["footer"] = {"text": "Documents for Nerds · Download Log"}
+    return embed
+
+
+def send_download_log(email, doc_title, ip, request_id=None):
+    return _send_payload({"embeds": [download_log_embed(email, doc_title, ip, request_id)]})
+
+
 def _send_payload(payload):
     """Send a message via the bot (clickable buttons) or fall back to the webhook."""
     if config.DISCORD_BOT_TOKEN and config.DISCORD_CHANNEL_ID:

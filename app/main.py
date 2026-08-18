@@ -50,6 +50,7 @@ class _RateLimiter:
 _login_limiter = _RateLimiter(config.LOGIN_MAX_ATTEMPTS, config.LOGIN_LOCKOUT_SECONDS)
 _admin_login_limiter = _RateLimiter(config.ADMIN_LOGIN_MAX_ATTEMPTS, config.ADMIN_LOGIN_LOCKOUT_SECONDS)
 _guide_limiter = _RateLimiter(config.GUIDE_REQUEST_MAX, config.GUIDE_REQUEST_WINDOW_SECONDS)
+_download_log_limiter = _RateLimiter(config.DOWNLOAD_LOG_MAX, config.DOWNLOAD_LOG_WINDOW_SECONDS)
 
 
 class _SessionRevoker:
@@ -785,6 +786,13 @@ def serve_download(token: str, request_id: int, request: Request, user: dict = D
         db.log_view(request_id, 0, request.client.host if request.client else None, request.headers.get("user-agent"))
     except Exception:
         pass
+    if discord.is_configured() and _download_log_limiter.hit(f"dl:{user['id']}"):
+        def _log_download():
+            try:
+                discord.send_download_log(user.get("email"), doc["title"], _client_ip(request), request_id)
+            except Exception as exc:
+                print(f"DISCORD DOWNLOAD LOG FAILED: {exc}")
+        threading.Thread(target=_log_download, daemon=True).start()
     filename = f"{Path(doc['title']).stem}.pdf"
     return Response(
         content=data,
