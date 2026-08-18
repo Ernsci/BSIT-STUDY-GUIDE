@@ -208,6 +208,12 @@
   .doc button.act, .doc button.wait { width: auto; padding: 9px 16px; font-size: 13px; border-radius: 10px; background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text); }
   .doc button.wait { color: var(--muted); animation: pulse 1.8s infinite; }
   .empty { color: var(--muted); font-size: 14px; padding: 18px 0; text-align: center; }
+  .guide { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--border); animation: fadeUp .4s ease both; }
+  .guide:last-of-type { border-bottom: 0; }
+  .guide .t { font-size: 14px; font-weight: 700; }
+  .guide .n { font-size: 12px; color: var(--muted); margin-top: 2px; word-break: break-word; }
+  button.mini { background: rgba(255,255,255,.06); border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+  button.mini:hover { background: rgba(255,255,255,.12); }
   .dlrow { margin-top: 6px; }
   .dlrow a { color: var(--good); font-weight: 700; font-size: 12px; text-decoration: none; }
   .dlrow .act { padding: 6px 12px; font-size: 12px; }
@@ -352,6 +358,20 @@
       <div id="docs"></div>
     </section>
 
+    <section class="panel anim anim-4" id="guideView" style="display:none">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+        <h2 style="font-size:15px; font-weight:800;">Request a study guide</h2>
+        <button type="button" class="mini" id="btnOpenGuide" onclick="toggleGuideForm()" style="width:auto; padding:8px 14px; font-size:13px;">+ New request</button>
+      </div>
+      <div id="guideForm" style="display:none;">
+        <input type="text" id="guideTitle" placeholder="What study guide do you need?" maxlength="120" autocomplete="off">
+        <textarea id="guideNote" rows="2" placeholder="Optional details… (max 500)" maxlength="500" style="width:100%; padding:11px 14px; background:rgba(255,255,255,.05); border:1px solid var(--border); border-radius:12px; font-size:14px; color:var(--text); margin-bottom:10px; outline:none; resize:vertical; font-family:inherit;"></textarea>
+        <button id="btnSubmitGuide" type="button">Send request to the owner</button>
+        <div class="status" id="guideMsg"></div>
+      </div>
+      <div id="guideRequests"></div>
+    </section>
+
     <section class="anim anim-4" id="contact">
       <h2>Contact the owner</h2>
       <div class="contact">
@@ -442,12 +462,14 @@ function showView() {
   const loggedIn = !!auth;
   document.getElementById('authView').style.display = loggedIn ? 'none' : '';
   document.getElementById('docsView').style.display = loggedIn ? '' : 'none';
+  document.getElementById('guideView').style.display = loggedIn ? '' : 'none';
   document.getElementById('hero').style.display = loggedIn ? 'none' : '';
   document.getElementById('contact').style.display = loggedIn ? 'none' : '';
   document.getElementById('foot').style.display = loggedIn ? 'none' : '';
   if (auth) {
     document.getElementById('acctName').textContent = auth.name;
     loadDocs();
+    loadGuideRequests();
     startDocsPolling();
   } else {
     stopDocsPolling();
@@ -581,11 +603,76 @@ let docsTimer = null;
 function startDocsPolling() {
   if (docsTimer) return;
   docsTimer = setInterval(() => {
-    if (getAuth()) loadDocs(true);
+    if (getAuth()) { loadDocs(true); loadGuideRequests(true); }
   }, 4000);
 }
 function stopDocsPolling() {
   if (docsTimer) { clearInterval(docsTimer); docsTimer = null; }
+}
+
+function toggleGuideForm() {
+  const f = document.getElementById('guideForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  document.getElementById('guideMsg').textContent = '';
+}
+
+document.getElementById('btnSubmitGuide').onclick = async () => {
+  const title = document.getElementById('guideTitle').value.trim();
+  const note = document.getElementById('guideNote').value.trim();
+  const msg = document.getElementById('guideMsg');
+  if (!title) { msg.className = 'status bad'; msg.textContent = 'Enter a topic.'; return; }
+  msg.className = 'status';
+  msg.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/guide/request', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ title, note })
+    });
+    if (res.status === 401) { logout(); return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { msg.className = 'status bad'; msg.textContent = data.detail || 'Request failed.'; return; }
+    document.getElementById('guideTitle').value = '';
+    document.getElementById('guideNote').value = '';
+    msg.className = 'status good';
+    msg.textContent = 'Request sent to the owner!';
+    loadGuideRequests();
+  } catch (e) {
+    msg.className = 'status bad';
+    msg.textContent = 'Network error. Try again.';
+  }
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadGuideRequests(silent) {
+  const el = document.getElementById('guideRequests');
+  try {
+    const res = await fetch('/api/guide/my', { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) return;
+    const items = await res.json();
+    if (!items.length) {
+      el.innerHTML = '<div class="empty">No study guide requests yet — click "+ New request".</div>';
+      return;
+    }
+    el.innerHTML = items.map(g => {
+      const badge = g.status === 'created'
+        ? '<span class="badge approved">Created</span>'
+        : '<span class="badge pending">Waiting</span>';
+      const note = g.note ? `<div class="n">${escapeHtml(g.note)}</div>` : '';
+      let when = '';
+      try { when = new Date(g.requested_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
+      return `<div class="guide">
+        <div><div class="t">${escapeHtml(g.title)}</div>${note}${when ? `<div class="n">Requested ${when}</div>` : ''}</div>
+        ${badge}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    if (!silent) el.innerHTML = '<div class="empty">Could not load requests.</div>';
+  }
 }
 
 function statusBadge(status) {

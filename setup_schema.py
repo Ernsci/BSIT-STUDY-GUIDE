@@ -57,6 +57,15 @@ ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS decided_by TEXT;
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'view';
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS batch_message_id BIGINT;
+
+CREATE TABLE IF NOT EXISTS guide_requests (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 """
 
 

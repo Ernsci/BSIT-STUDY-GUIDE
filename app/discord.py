@@ -154,6 +154,38 @@ def build_batch_embeds_and_components(reqs):
     return embeds, components
 
 
+def guide_request_embed(name, title, note, guide_id, created_by=None):
+    """Embed for a user-requested study guide. Pending state gets a 'Created' button."""
+    embed = _base_embed("Study Guide Request", COLOR_BRAND, "📚")
+    if created_by:
+        embed["title"] = "✅ Study Guide Created"
+        embed["color"] = COLOR_GREEN
+        embed["description"] = f"**{title}** was created and marked done by **{created_by}**."
+        embed["footer"] = {"text": f"Guide request #{guide_id} · Documents for Nerds"}
+    else:
+        embed["description"] = f"**{name}** requested a new study guide. Create it, then mark it done."
+        embed["footer"] = {"text": f"Guide request #{guide_id} · Documents for Nerds"}
+    fields = [
+        {"name": "👤 Requested by", "value": name, "inline": True},
+        {"name": "📝 Topic", "value": title, "inline": True},
+        {"name": "🕒 When", "value": datetime.now(timezone.utc).strftime("%b %d, %H:%M UTC"), "inline": True},
+    ]
+    if note:
+        fields.append({"name": "💬 Note", "value": note[:500]})
+    embed["fields"] = fields
+    return embed
+
+
+def send_guide_request(name, title, note, guide_id):
+    payload = {
+        "embeds": [guide_request_embed(name, title, note, guide_id)],
+        "components": [{"type": 1, "components": [
+            {"type": 2, "style": 3, "label": "✓ Created", "custom_id": f"guidecreated:{guide_id}"},
+        ]}],
+    }
+    return _send_payload(payload)
+
+
 def _send_payload(payload):
     """Send a message via the bot (clickable buttons) or fall back to the webhook."""
     if config.DISCORD_BOT_TOKEN and config.DISCORD_CHANNEL_ID:

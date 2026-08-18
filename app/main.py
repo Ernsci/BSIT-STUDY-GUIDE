@@ -49,6 +49,7 @@ class _RateLimiter:
 
 _login_limiter = _RateLimiter(config.LOGIN_MAX_ATTEMPTS, config.LOGIN_LOCKOUT_SECONDS)
 _admin_login_limiter = _RateLimiter(config.ADMIN_LOGIN_MAX_ATTEMPTS, config.ADMIN_LOGIN_LOCKOUT_SECONDS)
+_guide_limiter = _RateLimiter(config.GUIDE_REQUEST_MAX, config.GUIDE_REQUEST_WINDOW_SECONDS)
 
 
 class _SessionRevoker:
@@ -296,6 +297,11 @@ class ChangePasswordBody(BaseModel):
 
 class ResetCodeBody(BaseModel):
     code: str
+
+
+class GuideRequestBody(BaseModel):
+    title: str
+    note: str = ""
 
 
 GOOGLE_ONLY_HASH = "!google-only!"
@@ -688,6 +694,33 @@ def new_download_request(body: RequestBody, request: Request, user: dict = Depen
     return {"request_id": req["id"]}
 
 
+@app.post("/api/guide/request")
+def new_guide_request(body: GuideRequestBody, user: dict = Depends(require_user)):
+    title = body.title.strip()
+    note = body.note.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="topic is required")
+    if len(title) > config.GUIDE_TITLE_MAX:
+        raise HTTPException(status_code=400, detail=f"topic too long (max {config.GUIDE_TITLE_MAX} characters)")
+    if len(note) > config.GUIDE_NOTE_MAX:
+        raise HTTPException(status_code=400, detail=f"note too long (max {config.GUIDE_NOTE_MAX} characters)")
+    if not _guide_limiter.hit(f"guide:{user['id']}"):
+        wait = config.GUIDE_REQUEST_WINDOW_SECONDS // 60
+        raise HTTPException(status_code=429, detail=f"Please wait {wait} minutes before requesting another study guide.")
+    row = db.create_guide_request(user["id"], title, note)
+    if discord.is_configured():
+        try:
+            discord.send_guide_request(user["name"], title, note, row["id"])
+        except Exception as exc:
+            print(f"DISCORD GUIDE SEND FAILED: {exc}")
+    return {"ok": True, "guide_id": row["id"]}
+
+
+@app.get("/api/guide/my")
+def my_guide_requests(user: dict = Depends(require_user)):
+    return db.get_user_guide_requests(user["id"])
+
+
 @app.get("/api/download/status/{token}/{request_id}")
 def download_status(token: str, request_id: int, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
@@ -920,6 +953,9 @@ def _handle_discord_component(interaction, edit_spec):
         or " ".join(filter(None, [user.get("first_name"), user.get("last_name")]))
         or "Unknown"
     )
+    if custom_id.startswith("guidecreated:"):
+        _handle_guide_created(custom_id.split(":", 1)[1], decided_by, edit_spec)
+        return
     action, _, rid = custom_id.partition(":")
     req = db.get_access_request(int(rid)) if rid.isdigit() else None
     if not req:
@@ -935,6 +971,24 @@ def _handle_discord_component(interaction, edit_spec):
         ).start()
     else:
         threading.Thread(target=_process_decline, args=(req, doc, edit_spec, decided_by), daemon=True).start()
+
+
+def _handle_guide_created(guide_id, created_by, edit_spec):
+    """Mark a user study-guide request as created and refresh its Discord embed."""
+    def run():
+        try:
+            row = db.get_guide_request(int(guide_id))
+            if not row:
+                return
+            db.set_guide_request_status(row["id"], "created")
+            user_info = db.get_user(row.get("user_id")) if row.get("user_id") else None
+            name = (user_info or {}).get("name") or "A user"
+            embed = discord.guide_request_embed(name, row["title"], row.get("note") or "", row["id"], created_by=created_by)
+            discord.edit_message(edit_spec, [embed], [])
+        except Exception as exc:
+            print(f"GUIDE CREATED FAILED: {exc}")
+
+    threading.Thread(target=run, daemon=True).start()
 
 
 @app.post("/api/discord/interactions")

@@ -184,3 +184,35 @@ def last_request_at(user_id):
         .data
     )
     return data[0]["requested_at"] if data else None
+
+
+def create_guide_request(user_id, title, note):
+    payload = {
+        "user_id": user_id,
+        "title": title,
+        "note": note or "",
+        "status": "pending",
+    }
+    row = client().table("guide_requests").insert(payload).execute().data[0]
+    return row
+
+
+def get_user_guide_requests(user_id):
+    data = (
+        client().table("guide_requests")
+        .select("id, title, note, status, requested_at")
+        .eq("user_id", user_id)
+        .order("id", desc=True)
+        .execute()
+        .data
+    )
+    return data or []
+
+
+def get_guide_request(guide_id):
+    data = client().table("guide_requests").select("*").eq("id", guide_id).execute().data
+    return data[0] if data else None
+
+
+def set_guide_request_status(guide_id, status):
+    client().table("guide_requests").update({"status": status}).eq("id", guide_id).execute()
