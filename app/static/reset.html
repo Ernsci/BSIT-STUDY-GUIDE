@@ -6,24 +6,67 @@
 <title>Set a new password</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
-  .wrap { max-width: 420px; margin: 0 auto; padding: 24px 16px; }
-  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-top: 12vh; text-align: center; }
-  .card h1 { font-size: 20px; margin: 0 0 6px; }
-  .card p { color: #52606d; font-size: 14px; margin: 0 0 16px; }
-  input[type=password] { width: 100%; padding: 11px 13px; background: #f5f7fa; border: 1px solid #d3dce6; border-radius: 10px; font-size: 15px; margin-bottom: 10px; outline: none; }
-  input:focus { border-color: #4f7cff; }
-  button { width: 100%; padding: 11px; border: 0; border-radius: 10px; background: linear-gradient(90deg, #4f7cff, #7c4fff); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
-  button:hover { opacity: .9; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  .status { margin-top: 12px; color: #52606d; font-size: 13px; }
-  .status.bad { color: #c0392b; }
+  :root {
+    --accent: #5b8cff;
+    --accent2: #8b5cff;
+    --border: #e5e9f0;
+    --text: #1f2933;
+    --muted: #64748b;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f3f6fb; color: var(--text); min-height: 100vh; }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 24px 16px; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes popIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+  .card {
+    background: #fff; border-radius: 20px; padding: 30px; box-shadow: 0 24px 60px rgba(31,41,51,.12);
+    margin-top: 12vh; text-align: center; border: 1px solid rgba(255,255,255,.6); position: relative; overflow: hidden;
+    animation: fadeUp .6s cubic-bezier(.22,.68,.36,1) both;
+  }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .card .shield {
+    width: 60px; height: 60px; margin: 0 auto 16px; border-radius: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 24px rgba(91,140,255,.35); animation: popIn .5s .1s cubic-bezier(.22,.68,.36,1) both;
+  }
+  .card h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.4px; }
+  .card p { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+
+  input[type=password] {
+    width: 100%; padding: 13px 15px; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px;
+    font-size: 15px; margin-bottom: 12px; outline: none; transition: border-color .2s, box-shadow .2s, background .2s;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,140,255,.12); background: #fff; }
+
+  button {
+    width: 100%; padding: 13px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; position: relative; overflow: hidden;
+    box-shadow: 0 8px 22px rgba(91,140,255,.3); transition: transform .18s, box-shadow .25s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(91,140,255,.4); }
+  button:active { transform: translateY(0) scale(.985); }
+  button:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+  button::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); transform: translateX(-100%); }
+  button:hover::after { animation: shimmer .8s ease; }
+
+  .status { margin-top: 14px; color: var(--muted); font-size: 13px; min-height: 18px; animation: fadeUp .4s ease both; }
+  .status.bad { color: #dc2626; }
   .status.good { color: #16a34a; font-weight: 700; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
+    <div class="shield">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    </div>
     <h1>Set a new password</h1>
     <p>Choose a new password for your account.</p>
     <input type="password" id="pw" placeholder="New password (min 6 chars)" autocomplete="new-password">

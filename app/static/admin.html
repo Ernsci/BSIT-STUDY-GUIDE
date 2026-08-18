@@ -7,92 +7,128 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel2: #1e222b;
-    --border: #2a2f3a;
-    --text: #e6e9ef;
-    --muted: #8b93a3;
-    --accent: #4f8cff;
-    --accent2: #7c5cff;
-    --good: #34c98f;
-    --warn: #f5b942;
-    --bad: #ff5d5d;
+    --bg: #0a0c12;
+    --panel: rgba(22, 26, 36, .85);
+    --panel2: #1e2330;
+    --border: rgba(255,255,255,.08);
+    --text: #eef1f7;
+    --muted: #98a2b3;
+    --accent: #5b8cff;
+    --accent2: #8b5cff;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #ff6b6b;
+    --radius: 18px;
   }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh;
+  }
 
-  .nav { background: rgba(15,17,21,.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
-  .nav-inner { max-width: 900px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
-  .logo { font-size: 18px; font-weight: 800; letter-spacing: .5px; }
+  .bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: radial-gradient(55% 45% at 85% -5%, rgba(91,140,255,.2), transparent 60%), radial-gradient(45% 40% at 5% 0%, rgba(139,92,255,.16), transparent 60%), var(--bg); }
+  .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .45; animation: drift 20s ease-in-out infinite; }
+  .orb.o1 { width: 380px; height: 380px; background: rgba(91,140,255,.35); top: -120px; left: -80px; }
+  .orb.o2 { width: 340px; height: 340px; background: rgba(47,217,195,.25); bottom: -120px; right: -80px; animation-delay: -10s; }
+  @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px, 24px) scale(1.07); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes popIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+  @keyframes shimmer { 100% { transform: translateX(100%); } }
+  .anim { animation: fadeUp .6s cubic-bezier(.22,.68,.36,1) both; }
+
+  .nav { position: sticky; top: 0; z-index: 20; background: rgba(10,12,18,.55); backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); border-bottom: 1px solid var(--border); }
+  .nav-inner { max-width: 980px; margin: 0 auto; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-size: 18px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark { width: 32px; height: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 6px 18px rgba(91,140,255,.4); }
   .logo .n { color: var(--accent); }
-  .logo .tag { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 8px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; vertical-align: middle; }
+  .logo .tag { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: rgba(255,255,255,.04); vertical-align: middle; }
 
-  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 48px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 22px 60px; }
 
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
-  .panel + .panel { margin-top: 16px; }
-  .panel h2 { font-size: 15px; font-weight: 800; letter-spacing: .3px; margin-bottom: 14px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  .panel + .panel { margin-top: 20px; }
+  .panel h2 { font-size: 15px; font-weight: 800; letter-spacing: .3px; margin-bottom: 16px; }
   .panel h2 .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
 
-  /* Login */
-  #login { max-width: 420px; margin: 6vh auto 0; text-align: center; }
-  #login .shield { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; }
-  #login h2 { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
-  #login p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  #login { max-width: 460px; margin: 7vh auto 0; text-align: center; }
+  #login .shield { width: 60px; height: 60px; margin: 0 auto 16px; border-radius: 18px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(91,140,255,.35); animation: popIn .5s .1s cubic-bezier(.22,.68,.36,1) both; }
+  #login h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -.4px; }
+  #login p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
   #login form { text-align: left; }
 
-  input[type=password], input[type=file], input[type=text] { width: 100%; padding: 11px 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 10px; outline: none; transition: border-color .15s; }
-  input:focus { border-color: var(--accent); }
+  input[type=password], input[type=file], input[type=text] {
+    width: 100%; padding: 13px 15px; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+    border-radius: 12px; font-size: 15px; color: var(--text); margin-bottom: 12px; outline: none;
+    transition: border-color .2s, box-shadow .2s, background .2s;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(91,140,255,.15); background: rgba(255,255,255,.07); }
   input::placeholder { color: var(--muted); }
 
-  input[type=file] { padding: 22px 14px; border: 1.5px dashed var(--border); background: var(--panel2); border-radius: 12px; cursor: pointer; font-size: 13px; color: var(--muted); text-align: center; }
+  input[type=file] { padding: 24px 16px; border: 1.5px dashed var(--border); background: rgba(255,255,255,.03); border-radius: 14px; cursor: pointer; font-size: 13px; color: var(--muted); text-align: center; transition: border-color .2s, background .2s; }
   input[type=file]::file-selector-button { display: none; }
-  input[type=file].has-file { border-color: var(--good); color: var(--good); }
+  input[type=file].has-file { border-color: var(--good); color: var(--good); background: rgba(52,211,153,.06); }
 
-  button { padding: 11px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
-  button:hover { opacity: .9; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  button.secondary { width: auto; padding: 8px 14px; font-size: 13px; background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
-  button.danger { width: auto; padding: 8px 14px; font-size: 13px; background: rgba(255,93,93,.12); border: 1px solid rgba(255,93,93,.4); color: var(--bad); }
+  button {
+    padding: 13px; border: 0; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; position: relative; overflow: hidden;
+    box-shadow: 0 8px 22px rgba(91,140,255,.35); transition: transform .18s, box-shadow .25s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(91,140,255,.45); }
+  button:active { transform: translateY(0) scale(.985); }
+  button:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+  button::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); transform: translateX(-100%); }
+  button:hover::after { animation: shimmer .8s ease; }
+  button.secondary { width: auto; padding: 9px 16px; font-size: 13px; background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+  button.secondary:hover { background: rgba(255,255,255,.1); box-shadow: none; }
+  button.danger { width: auto; padding: 9px 16px; font-size: 13px; background: rgba(255,107,107,.12); border: 1px solid rgba(255,107,107,.4); color: var(--bad); box-shadow: none; }
+  button.danger:hover { background: rgba(255,107,107,.2); box-shadow: none; }
 
   .row { display: flex; gap: 10px; align-items: center; }
   .row button { flex: 1; }
 
-  .msg { margin-top: 12px; font-size: 13px; color: var(--muted); word-break: break-all; }
+  .msg { margin-top: 12px; font-size: 13px; color: var(--muted); word-break: break-all; animation: fadeUp .4s ease both; }
   .msg.good { color: var(--good); }
   .msg.bad { color: var(--bad); }
 
-  /* Stats */
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
-  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
-  .stat .num { font-size: 26px; font-weight: 800; line-height: 1.1; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  .stat {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px;
+    backdrop-filter: blur(14px); transition: transform .2s, border-color .2s; animation: fadeUp .5s ease both;
+  }
+  .stat:hover { transform: translateY(-3px); border-color: rgba(91,140,255,.4); }
+  .stat .num { font-size: 28px; font-weight: 800; line-height: 1.1; }
   .stat .label { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 4px; }
   .stat.active .num { color: var(--good); }
   .stat.revoked .num { color: var(--bad); }
 
-  /* Docs */
-  .doc { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); gap: 12px; }
-  .doc:first-of-type { padding-top: 0; }
-  .doc:last-of-type { border-bottom: 0; padding-bottom: 0; }
+  .doc {
+    display: flex; justify-content: space-between; align-items: center; padding: 16px 4px;
+    border-bottom: 1px solid var(--border); gap: 12px; animation: fadeUp .4s ease both;
+  }
+  .doc:first-of-type { padding-top: 2px; }
+  .doc:last-of-type { border-bottom: 0; padding-bottom: 2px; }
   .doc .title { font-weight: 700; font-size: 15px; }
   .doc .meta { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .doc .meta a { color: var(--accent); text-decoration: none; font-weight: 600; }
   .doc .meta a:hover { text-decoration: underline; }
   .doc .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
 
-  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px; }
-  .badge.active { background: rgba(52,201,143,.15); color: var(--good); }
-  .badge.revoked { background: rgba(255,93,93,.15); color: var(--bad); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 999px; letter-spacing: .3px; }
+  .badge.active { background: rgba(52,211,153,.15); color: var(--good); }
+  .badge.revoked { background: rgba(255,107,107,.15); color: var(--bad); }
 
-  .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
+  .empty { color: var(--muted); font-size: 14px; padding: 18px 0; text-align: center; }
 
   .hidden { display: none; }
 
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+
   @media (max-width: 640px) {
-    .nav-inner { padding: 12px 16px; }
-    .wrap { padding: 16px 14px 40px; }
+    .nav-inner { padding: 14px 16px; }
+    .wrap { padding: 20px 16px 48px; }
     .stats { grid-template-columns: 1fr; }
-    .doc { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .doc { flex-direction: column; align-items: flex-start; gap: 10px; }
     .doc .actions { align-self: stretch; justify-content: flex-end; }
     .doc .actions .secondary, .doc .actions .danger { flex: 1; text-align: center; }
     #login { margin-top: 4vh; }
@@ -100,15 +136,20 @@
 </style>
 </head>
 <body>
+  <div class="bg" aria-hidden="true">
+    <div class="orb o1"></div>
+    <div class="orb o2"></div>
+  </div>
+
   <header class="nav">
     <div class="nav-inner">
-      <div class="logo">📚 Documents for <span class="n">Nerds</span><span class="tag">Admin</span></div>
+      <div class="logo"><span class="mark">🛡️</span> Documents for <span class="n">Nerds</span><span class="tag">Admin</span></div>
       <button class="secondary logout" id="logoutBtn" style="display:none;width:auto" onclick="doLogout()">Log out</button>
     </div>
   </header>
 
   <div class="wrap">
-    <div class="panel" id="login">
+    <div class="panel anim" id="login">
       <div class="shield">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5.25 3.4 10.1 8 11 4.6-.9 8-5.75 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
       </div>
@@ -121,7 +162,7 @@
       <div class="msg bad" id="loginMsg"></div>
     </div>
 
-    <div class="panel hidden" id="app">
+    <div class="panel hidden anim-2" id="app">
       <h2>Upload a PDF <span class="sub">Protected &amp; watermarked</span></h2>
       <input type="file" id="file" accept=".pdf" onchange="onFilePick(event)">
       <button id="uploadBtn" onclick="upload()">Upload &amp; protect</button>
@@ -130,12 +171,12 @@
 
     <div class="stats hidden" id="statsRow"></div>
 
-    <div class="panel hidden" id="docsCard">
+    <div class="panel hidden anim-3" id="docsCard">
       <h2>Your documents <span class="sub">Share each link to give access</span></h2>
       <div id="docs"></div>
     </div>
 
-    <div class="panel hidden" id="resetCard">
+    <div class="panel hidden anim-4" id="resetCard">
       <h2>Password reset <span class="sub">Give a reset link to a user who sent you their code</span></h2>
       <input type="text" id="resetCode" placeholder="Reset code from the user">
       <button id="resetBtn" onclick="makeResetLink()">Generate reset link</button>
