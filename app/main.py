@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import BaseModel
@@ -125,6 +125,16 @@ def require_safe_origin(request: Request):
 app = FastAPI(title="Approval Documents", docs_url=None, redoc_url=None)
 app.mount("/pdfjs", StaticFiles(directory=STATIC_DIR / "pdfjs"), name="pdfjs")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.exception_handler(HTTPException)
+def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == 401 and request.url.path.startswith("/v/"):
+        return HTMLResponse(
+            (STATIC_DIR / "login-required.html").read_text(encoding="utf-8"),
+            status_code=401,
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 @app.middleware("http")
