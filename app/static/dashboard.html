@@ -342,7 +342,7 @@ function renderDoc(el, d) {
 
   let dlHtml = '';
   if (dl.status === 'approved') {
-    dlHtml = `<div class="dlrow">Download: <a href="${dl.url}" download>PDF</a></div>`;
+    dlHtml = `<div class="dlrow">Download: <a href="#" onclick="downloadPdf('${dl.url}'); return false;">PDF</a></div>`;
   } else if (dl.status === 'pending') {
     dlHtml = `<div class="dlrow"><span class="badge pending">Download waiting…</span></div>`;
   } else {
@@ -391,6 +391,22 @@ async function requestDownload(token) {
     }
     loadDocs();
   } catch (e) { alert('Request failed.'); }
+}
+
+async function downloadPdf(url) {
+  try {
+    const res = await fetch(url, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'document.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {}
 }
 
 showView();

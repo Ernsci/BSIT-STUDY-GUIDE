@@ -467,13 +467,15 @@ def new_download_request(body: RequestBody, request: Request, user: dict = Depen
 
 
 @app.get("/api/download/status/{token}/{request_id}")
-def download_status(token: str, request_id: int):
+def download_status(token: str, request_id: int, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
     if not doc:
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"]:
         raise HTTPException(status_code=404)
+    if req.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="access denied")
     return {
         "status": req["status"],
         "download_url": f"/v/{token}/download/{request_id}" if req["status"] == "approved" else None,
@@ -481,13 +483,15 @@ def download_status(token: str, request_id: int):
 
 
 @app.get("/v/{token}/download/{request_id}")
-def serve_download(token: str, request_id: int, request: Request):
+def serve_download(token: str, request_id: int, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
     if not doc:
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"] or req["status"] != "approved" or req.get("kind") != "download":
         raise HTTPException(status_code=403)
+    if req.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="access denied")
     if not req.get("pages_path"):
         raise HTTPException(status_code=404)
     path = f"{req['pages_path']}/view.pdf"
@@ -558,13 +562,15 @@ def my_status(token: str, user: dict = Depends(require_user)):
 
 
 @app.get("/api/status/{token}/{request_id}")
-def request_status(token: str, request_id: int):
+def request_status(token: str, request_id: int, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
     if not doc:
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"]:
         raise HTTPException(status_code=404)
+    if req.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="access denied")
     pages = []
     if req["status"] == "approved" and req.get("pages_path"):
         pages = [f"/v/{token}/page/{request_id}/{n}" for n in range(1, doc["page_count"] + 1)]
@@ -572,13 +578,15 @@ def request_status(token: str, request_id: int):
 
 
 @app.get("/v/{token}/page/{request_id}/{page_number}")
-def serve_page(token: str, request_id: int, page_number: int, request: Request):
+def serve_page(token: str, request_id: int, page_number: int, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
     if not doc:
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"] or req["status"] != "approved":
         raise HTTPException(status_code=403)
+    if req.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="access denied")
     if page_number < 1 or page_number > doc["page_count"]:
         raise HTTPException(status_code=404)
     path = f"{req['pages_path']}/{page_number}.jpg"
@@ -591,13 +599,15 @@ def serve_page(token: str, request_id: int, page_number: int, request: Request):
 
 
 @app.get("/v/{token}/pdf/{request_id}")
-def serve_pdf(token: str, request_id: int, request: Request):
+def serve_pdf(token: str, request_id: int, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
     if not doc:
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"] or req["status"] != "approved":
         raise HTTPException(status_code=403)
+    if req.get("user_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="access denied")
     path = f"{req['pages_path']}/view.pdf"
     data = storage.download_page(path)
     try:

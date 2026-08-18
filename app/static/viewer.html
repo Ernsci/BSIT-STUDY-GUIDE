@@ -156,7 +156,7 @@ async function resumeIfApproved() {
       showDocument(s.view_pdf, 0);
       if (s.download_approved && s.download_url) {
         document.getElementById('dlStatus').textContent = 'Your file is ready.';
-        document.getElementById('dlArea').innerHTML = `<a class="dl" href="${s.download_url}" download>Download PDF</a>`;
+        document.getElementById('dlArea').innerHTML = `<a class="dl" href="#" onclick="downloadPdf('${s.download_url}'); return false;">Download PDF</a>`;
       } else if (s.pending_download) {
         document.getElementById('dlStatus').textContent = 'Waiting for owner approval to download…';
         document.getElementById('dlArea').innerHTML = '<button class="dl" disabled>Waiting…</button>';
@@ -245,7 +245,8 @@ btn.onclick = async () => {
 
 async function poll(requestId) {
   try {
-    const res = await fetch(`/api/status/${token}/${requestId}`);
+    const res = await fetch(`/api/status/${token}/${requestId}`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
     if (!res.ok) return;
     const data = await res.json();
     if (data.status === 'approved') {
@@ -272,7 +273,7 @@ async function showDocument(pdfUrl, totalPages) {
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
   try {
-    renderedPdf = await pdfjsLib.getDocument(pdfUrl).promise;
+    renderedPdf = await pdfjsLib.getDocument({ url: pdfUrl, httpHeaders: authHeaders() }).promise;
     const pageCount = renderedPdf.numPages;
     loading.remove();
     for (let i = 1; i <= pageCount; i++) {
@@ -342,15 +343,32 @@ function renderDlButton() {
   document.getElementById('dlArea').innerHTML = '<button class="dl" onclick="requestDownload()">Download PDF</button>';
 }
 
+async function downloadPdf(url) {
+  try {
+    const res = await fetch(url, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'document.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {}
+}
+
 async function pollDownload(requestId) {
   try {
-    const res = await fetch(`/api/download/status/${token}/${requestId}`);
+    const res = await fetch(`/api/download/status/${token}/${requestId}`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
     if (!res.ok) return;
     const data = await res.json();
     if (data.status === 'approved') {
       clearInterval(dlPollTimer);
       document.getElementById('dlStatus').textContent = 'Your file is ready.';
-      document.getElementById('dlArea').innerHTML = `<a class="dl" href="${data.download_url}" download>Download PDF</a>`;
+      document.getElementById('dlArea').innerHTML = `<a class="dl" href="#" onclick="downloadPdf('${data.download_url}'); return false;">Download PDF</a>`;
     } else if (data.status === 'declined') {
       clearInterval(dlPollTimer);
       document.getElementById('dlStatus').textContent = 'Download was declined.';
