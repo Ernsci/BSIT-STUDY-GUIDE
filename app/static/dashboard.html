@@ -92,6 +92,17 @@
   }
   .shell { margin: auto; width: 100%; }
 
+  /* Themed scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(91,140,255,.45), rgba(139,92,255,.45));
+    border-radius: 999px; border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, var(--accent), var(--accent2)); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(91,140,255,.55) transparent; }
+
   /* Hero */
   .hero { text-align: center; padding: 4px 0 14px; }
   .hero .chip {
