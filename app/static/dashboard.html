@@ -208,7 +208,8 @@ function authHeaders() {
   return { 'Content-Type': 'application/json', ...(auth ? { Authorization: 'Bearer ' + auth.token } : {}) };
 }
 
-document.getElementById('year').textContent = new Date().getFullYear();
+const yearEl = document.getElementById('year');
+if (yearEl) yearEl.textContent = new Date().getFullYear();
 
 fetch('/api/site').then(r => r.json()).then(s => {
   document.getElementById('navFb').href = s.facebook_url;
