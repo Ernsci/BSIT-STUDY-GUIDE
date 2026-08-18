@@ -702,9 +702,9 @@ function renderDoc(el, d) {
   const open = d.access_mode === 'open';
 
   if (open) {
-    actions.innerHTML += `<a class="open" href="/v/${d.token}" target="_blank">Open document</a>`;
+    actions.innerHTML += `<a class="open" href="/v/${d.token}">Open document</a>`;
   } else if (v.status === 'approved') {
-    actions.innerHTML += `<a class="open" href="/v/${d.token}" target="_blank">Open document</a>`;
+    actions.innerHTML += `<a class="open" href="/v/${d.token}">Open document</a>`;
   } else if (v.status === 'pending') {
     actions.innerHTML += `<button class="wait" disabled>Waiting…</button>`;
   } else {
