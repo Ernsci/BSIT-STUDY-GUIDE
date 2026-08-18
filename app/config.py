@@ -32,7 +32,7 @@ LOGIN_LOCKOUT_SECONDS = int(_get("LOGIN_LOCKOUT_SECONDS", "300"))
 PASSWORD_RESET_HOURS = int(_get("PASSWORD_RESET_HOURS", "2"))
 OWNER_FACEBOOK_URL = _get("OWNER_FACEBOOK_URL", "https://facebook.com")
 OWNER_EMAIL = _get("OWNER_EMAIL", "owner@example.com")
-APP_BASE_URL = _get("APP_BASE_URL", "http://localhost:8000")
+APP_BASE_URL = _get("APP_BASE_URL", "http://localhost:8000").rstrip("/")
 TELEGRAM_POLLING = _get("TELEGRAM_POLLING", "0") == "1"
 TELEGRAM_WEBHOOK_SECRET = _get("TELEGRAM_WEBHOOK_SECRET", "")
 
