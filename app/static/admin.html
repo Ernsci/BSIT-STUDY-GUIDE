@@ -128,6 +128,16 @@
   .badge.active { background: rgba(52,211,153,.15); color: var(--good); }
   .badge.revoked { background: rgba(255,107,107,.15); color: var(--bad); }
 
+  .mode { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .mode b { color: var(--text); }
+  .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider { position: absolute; cursor: pointer; inset: 0; background: rgba(255,255,255,.14); border-radius: 999px; transition: background .2s; }
+  .switch .slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform .2s; }
+  .switch input:checked + .slider { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .switch input:checked + .slider::before { transform: translateX(18px); }
+  .switch input:disabled + .slider { opacity: .45; cursor: not-allowed; }
+
   .empty { color: var(--muted); font-size: 14px; padding: 18px 0; text-align: center; }
 
   .hidden { display: none; }
@@ -306,6 +316,13 @@ async function loadDocs() {
       <div>
         <div class="title">${d.title}</div>
         <div class="meta">${d.page_count} pages · ${link}</div>
+        <div class="mode">
+          <label class="switch" title="Toggle open access (no request needed)">
+            <input type="checkbox" ${d.access_mode === 'open' ? 'checked' : ''} ${d.status !== 'active' ? 'disabled' : ''} onchange="setMode(${d.id}, this.checked)">
+            <span class="slider"></span>
+          </label>
+          <span id="modeLabel-${d.id}">${d.access_mode === 'open' ? 'Open access — no request needed' : 'Restricted — request required'}</span>
+        </div>
       </div>
       <div class="actions">
         ${badge}
@@ -325,6 +342,25 @@ async function loadDocs() {
 function toggleActions(id) {
   document.getElementById('actions-' + id).classList.add('hidden');
   document.getElementById('confirm-' + id).classList.remove('hidden');
+}
+
+async function setMode(id, open) {
+  const mode = open ? 'open' : 'restricted';
+  const label = document.getElementById('modeLabel-' + id);
+  label.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/admin/mode/${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ mode })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { label.textContent = data.detail || 'Failed to save.'; loadDocs(); return; }
+    label.textContent = open ? 'Open access — no request needed' : 'Restricted — request required';
+  } catch (e) {
+    label.textContent = 'Failed to save.';
+    loadDocs();
+  }
 }
 
 function copyLink(token) {

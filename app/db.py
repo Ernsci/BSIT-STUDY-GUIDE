@@ -38,12 +38,16 @@ def list_documents():
 def list_active_documents():
     return (
         client().table("documents")
-        .select("id, token, title, page_count, status")
+        .select("id, token, title, page_count, status, access_mode")
         .eq("status", "active")
         .order("id", desc=True)
         .execute()
         .data
     )
+
+
+def set_document_mode(doc_id, mode):
+    client().table("documents").update({"access_mode": mode}).eq("id", doc_id).execute()
 
 
 def revoke_document(doc_id):

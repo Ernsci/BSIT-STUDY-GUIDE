@@ -209,6 +209,7 @@
   .badge.pending { background: rgba(251,191,36,.15); color: var(--warn); animation: pulse 1.8s infinite; }
   .badge.declined { background: rgba(255,107,107,.15); color: var(--bad); }
   .badge.none { background: rgba(152,162,179,.15); color: var(--muted); }
+  .badge.open { background: rgba(52,211,153,.15); color: var(--good); }
 
   .doc a.open {
     display: inline-block; padding: 9px 16px; font-size: 13px; border-radius: 10px;
@@ -698,8 +699,11 @@ function renderDoc(el, d) {
   actions.className = 'actions';
 
   const v = d.view, dl = d.download;
+  const open = d.access_mode === 'open';
 
-  if (v.status === 'approved') {
+  if (open) {
+    actions.innerHTML += `<a class="open" href="/v/${d.token}" target="_blank">Open document</a>`;
+  } else if (v.status === 'approved') {
     actions.innerHTML += `<a class="open" href="/v/${d.token}" target="_blank">Open document</a>`;
   } else if (v.status === 'pending') {
     actions.innerHTML += `<button class="wait" disabled>Waiting…</button>`;
@@ -710,16 +714,19 @@ function renderDoc(el, d) {
   let dlHtml = '';
   if (dl.status === 'approved') {
     dlHtml = `<div class="dlrow">Download: <a href="#" onclick="downloadPdf('${dl.url}'); return false;">PDF</a></div>`;
+  } else if (open) {
+    dlHtml = `<div class="dlrow"><button class="act" onclick="downloadNow('${d.token}')">Download PDF</button></div>`;
   } else if (dl.status === 'pending') {
     dlHtml = `<div class="dlrow"><span class="badge pending">Download waiting…</span></div>`;
   } else {
     dlHtml = `<div class="dlrow"><button class="act" onclick="requestDownload('${d.token}')">Request download</button></div>`;
   }
 
+  const badge = open ? '<span class="badge open">Open</span>' : statusBadge(v.status);
   row.innerHTML = `
     <div>
       <div class="title">${d.title}</div>
-      <div class="meta">${d.page_count} pages · ${statusBadge(v.status)}</div>
+      <div class="meta">${d.page_count} pages · ${badge}</div>
       ${dlHtml}
     </div>
     <div class="actions">${actions.innerHTML}</div>`;
@@ -757,6 +764,37 @@ async function requestDownload(token) {
       return;
     }
     loadDocs();
+  } catch (e) { alert('Request failed.'); }
+}
+
+async function downloadNow(token) {
+  try {
+    const res = await fetch('/api/download/request', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ token })
+    });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || 'Request failed.');
+      return;
+    }
+    const data = await res.json();
+    const poll = setInterval(async () => {
+      try {
+        const s = await fetch(`/api/download/status/${token}/${data.request_id}`, { headers: authHeaders() }).then(r => r.json());
+        if (s.status === 'approved' && s.download_url) {
+          clearInterval(poll);
+          downloadPdf(s.download_url);
+          loadDocs();
+        } else if (s.status === 'declined') {
+          clearInterval(poll);
+          alert('Download was declined.');
+          loadDocs();
+        }
+      } catch (e) {}
+    }, 2000);
   } catch (e) { alert('Request failed.'); }
 }
 

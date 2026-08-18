@@ -304,6 +304,10 @@ class GuideRequestBody(BaseModel):
     note: str = ""
 
 
+class AdminModeBody(BaseModel):
+    mode: str
+
+
 GOOGLE_ONLY_HASH = "!google-only!"
 
 
@@ -636,6 +640,20 @@ def admin_revoke(doc_id: int, _: bool = Depends(require_admin), __: bool = Depen
     return {"ok": True}
 
 
+@app.post("/api/admin/mode/{doc_id}")
+def admin_mode(
+    doc_id: int,
+    body: AdminModeBody,
+    _: bool = Depends(require_admin),
+    __: bool = Depends(require_safe_origin),
+):
+    mode = body.mode.strip().lower()
+    if mode not in ("open", "restricted"):
+        raise HTTPException(status_code=400, detail="mode must be 'open' or 'restricted'")
+    db.set_document_mode(doc_id, mode)
+    return {"ok": True}
+
+
 @app.post("/api/admin/delete/{doc_id}")
 def admin_delete(doc_id: int, _: bool = Depends(require_admin), __: bool = Depends(require_safe_origin)):
     doc = db.get_document(doc_id)
@@ -673,9 +691,15 @@ def new_request(body: RequestBody, request: Request, user: dict = Depends(requir
         raise HTTPException(status_code=404, detail="link not found or revoked")
     name = user["name"]
     client_ip = _client_ip(request)
-    _enforce_antispam(user["id"])
+    is_open = (doc.get("access_mode") or "restricted") == "open"
+    if not is_open:
+        _enforce_antispam(user["id"])
     req = db.create_access_request(doc["id"], name, ip=client_ip, user_id=user["id"])
-    if discord.is_configured():
+    if is_open:
+        threading.Thread(
+            target=_process_approval, args=(req, doc, None, "System (auto)"), daemon=True
+        ).start()
+    elif discord.is_configured():
         _enqueue_notification("view", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
@@ -687,9 +711,15 @@ def new_download_request(body: RequestBody, request: Request, user: dict = Depen
         raise HTTPException(status_code=404, detail="link not found or revoked")
     name = user["name"]
     client_ip = _client_ip(request)
-    _enforce_antispam(user["id"])
+    is_open = (doc.get("access_mode") or "restricted") == "open"
+    if not is_open:
+        _enforce_antispam(user["id"])
     req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download", user_id=user["id"])
-    if discord.is_configured():
+    if is_open:
+        threading.Thread(
+            target=_process_download_approval, args=(req, doc, None, "System (auto)"), daemon=True
+        ).start()
+    elif discord.is_configured():
         _enqueue_notification("download", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
@@ -785,6 +815,7 @@ def my_documents(user: dict = Depends(require_user)):
             "token": d["token"],
             "title": d["title"],
             "page_count": d["page_count"],
+            "access_mode": d.get("access_mode") or "restricted",
             "view": {
                 "status": view["status"] if view else "none",
                 "request_id": view["id"] if view else None,
@@ -815,6 +846,8 @@ def my_status(token: str, user: dict = Depends(require_user)):
         "download_url": f"/v/{token}/download/{dl['id']}" if dl else None,
         "pending_view": pending_view["id"] if pending_view else None,
         "pending_download": pending_dl["id"] if pending_dl else None,
+        "open_access": (doc.get("access_mode") or "restricted") == "open",
+        "title": doc["title"],
     }
 
 
@@ -927,6 +960,8 @@ def _rebuild_batch_message(edit_spec):
 def _finalize_message(edit_spec, req, doc, action, decided_by, kind="view"):
     """After a decision, rebuild the batch if this request was part of one,
     otherwise replace with the single-request decision embed."""
+    if not edit_spec:
+        return
     try:
         if _rebuild_batch_message(edit_spec):
             return

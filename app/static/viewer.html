@@ -177,7 +177,7 @@
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5.25 3.4 10.1 8 11 4.6-.9 8-5.75 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
     </div>
     <h1>Secure document</h1>
-    <p>This document is access-controlled. Create an account or log in to request access from the owner.</p>
+    <p id="gateDesc">This document is access-controlled. Create an account or log in to request access from the owner.</p>
 
     <div id="authView">
       <div class="tabs">
@@ -334,6 +334,15 @@ async function resumeIfApproved() {
     if (res.status === 401) { logout(); return; }
     if (!res.ok) return;
     const s = await res.json();
+    const gateDesc = document.getElementById('gateDesc');
+    const btnEl = document.getElementById('btn');
+    if (s.open_access) {
+      gateDesc.textContent = 'This document is open — no approval needed. Log in to view and download.';
+      btnEl.textContent = 'Open document';
+    } else {
+      gateDesc.textContent = 'This document is access-controlled. Create an account or log in to request access from the owner.';
+      btnEl.textContent = 'Request access';
+    }
     if (s.view_approved && s.view_pdf) {
       clearInterval(pollTimer);
       showDocument(s.view_pdf, 0);
