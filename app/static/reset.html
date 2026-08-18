@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set a new password</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f5f7fa; color: #1f2933; }
+  .wrap { max-width: 420px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-top: 12vh; text-align: center; }
+  .card h1 { font-size: 20px; margin: 0 0 6px; }
+  .card p { color: #52606d; font-size: 14px; margin: 0 0 16px; }
+  input[type=password] { width: 100%; padding: 11px 13px; background: #f5f7fa; border: 1px solid #d3dce6; border-radius: 10px; font-size: 15px; margin-bottom: 10px; outline: none; }
+  input:focus { border-color: #4f7cff; }
+  button { width: 100%; padding: 11px; border: 0; border-radius: 10px; background: linear-gradient(90deg, #4f7cff, #7c4fff); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+  button:hover { opacity: .9; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { margin-top: 12px; color: #52606d; font-size: 13px; }
+  .status.bad { color: #c0392b; }
+  .status.good { color: #16a34a; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Set a new password</h1>
+    <p>Choose a new password for your account.</p>
+    <input type="password" id="pw" placeholder="New password (min 6 chars)" autocomplete="new-password">
+    <input type="password" id="pw2" placeholder="Repeat password" autocomplete="new-password">
+    <button id="btn">Save new password</button>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+const token = decodeURIComponent(location.pathname.replace(/^\/reset\//, ''));
+const statusEl = document.getElementById('status');
+
+document.getElementById('btn').onclick = async () => {
+  const pw = document.getElementById('pw').value;
+  const pw2 = document.getElementById('pw2').value;
+  if (pw.length < 6) { statusEl.className = 'status bad'; statusEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (pw !== pw2) { statusEl.className = 'status bad'; statusEl.textContent = 'Passwords do not match.'; return; }
+  statusEl.className = 'status';
+  statusEl.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password: pw })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { statusEl.className = 'status bad'; statusEl.textContent = data.detail || 'Reset failed.'; return; }
+    statusEl.className = 'status good';
+    statusEl.textContent = 'Password saved. You can now log in.';
+    document.getElementById('btn').disabled = true;
+  } catch (e) {
+    statusEl.className = 'status bad';
+    statusEl.textContent = 'Reset failed.';
+  }
+};
+</script>
+</body>
+</html>

@@ -41,7 +41,7 @@
   #login p { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
   #login form { text-align: left; }
 
-  input[type=password], input[type=file] { width: 100%; padding: 11px 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 10px; outline: none; transition: border-color .15s; }
+  input[type=password], input[type=file], input[type=text] { width: 100%; padding: 11px 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; font-size: 15px; color: var(--text); margin-bottom: 10px; outline: none; transition: border-color .15s; }
   input:focus { border-color: var(--accent); }
   input::placeholder { color: var(--muted); }
 
@@ -134,6 +134,14 @@
       <h2>Your documents <span class="sub">Share each link to give access</span></h2>
       <div id="docs"></div>
     </div>
+
+    <div class="panel hidden" id="resetCard">
+      <h2>Password reset <span class="sub">Give a reset link to a user who sent you their code</span></h2>
+      <input type="text" id="resetCode" placeholder="Reset code from the user">
+      <button id="resetBtn" onclick="makeResetLink()">Generate reset link</button>
+      <div class="msg" id="resetMsg"></div>
+      <div class="msg" id="resetOut"></div>
+    </div>
   </div>
 
 <script>
@@ -151,9 +159,38 @@ function showApp() {
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('docsCard').classList.remove('hidden');
+  document.getElementById('resetCard').classList.remove('hidden');
   document.getElementById('statsRow').classList.remove('hidden');
   document.getElementById('logoutBtn').style.display = 'inline-block';
   loadDocs();
+}
+
+async function makeResetLink() {
+  const code = document.getElementById('resetCode').value.trim();
+  const msg = document.getElementById('resetMsg');
+  const out = document.getElementById('resetOut');
+  msg.className = 'msg';
+  out.className = 'msg';
+  out.textContent = '';
+  if (!code) { msg.textContent = 'Enter the code.'; return; }
+  msg.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/admin/reset-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { msg.className = 'msg bad'; msg.textContent = data.detail || 'Failed.'; return; }
+    msg.className = 'msg';
+    msg.textContent = 'Link for ' + data.email + ':';
+    out.className = 'msg';
+    out.innerHTML = '<a href="' + data.url + '" target="_blank" rel="noopener">' + data.url + '</a>';
+    document.getElementById('resetCode').value = '';
+  } catch (e) {
+    msg.className = 'msg bad';
+    msg.textContent = 'Network error.';
+  }
 }
 
 async function doLogout() {

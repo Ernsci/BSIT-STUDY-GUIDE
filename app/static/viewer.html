@@ -70,6 +70,14 @@
         <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
         <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
         <button id="btnLogin">Log in</button>
+        <div style="margin-top:6px;">
+          <a href="#" onclick="showForgot(); return false;" style="color:#52606d; font-size:12px; text-decoration:underline;">Forgot password?</a>
+        </div>
+        <div id="forgotPane" style="display:none; margin-top:12px; border-top:1px solid #d3dce6; padding-top:12px;">
+          <input type="email" id="forgotEmail" placeholder="Your account email" autocomplete="email">
+          <button id="btnForgot" type="button">Get a reset code</button>
+          <div style="margin-top:10px; color:#52606d; font-size:12px; line-height:1.5;" id="forgotMsg"></div>
+        </div>
       </div>
 
       <div id="registerPane" style="display:none">
@@ -149,6 +157,31 @@ function switchTab(which) {
   document.getElementById('registerPane').style.display = which === 'register' ? '' : 'none';
   authStatusEl.textContent = '';
 }
+
+function showForgot() {
+  const pane = document.getElementById('forgotPane');
+  pane.style.display = pane.style.display === 'none' ? '' : 'none';
+}
+
+document.getElementById('btnForgot').onclick = async () => {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const msg = document.getElementById('forgotMsg');
+  if (!email) { msg.textContent = 'Enter your email.'; return; }
+  msg.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/forgot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { msg.textContent = data.detail || 'Something went wrong.'; return; }
+    msg.innerHTML = '<b>Your reset code:</b> <span style="font-size:18px; letter-spacing:2px; color:#4f7cff;">' + data.code + '</span><br>' +
+      data.hint + '<br>Valid for ' + data.expires_hours + ' hours.';
+  } catch (e) {
+    msg.textContent = 'Network error. Try again.';
+  }
+};
 
 function showAuthUI() {
   const auth = getAuth();

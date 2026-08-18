@@ -157,6 +157,10 @@ def get_user(user_id):
     return data[0] if data else None
 
 
+def update_user_password(user_id, password_hash):
+    client().table("users").update({"password_hash": password_hash}).eq("id", user_id).execute()
+
+
 def count_pending_requests(user_id):
     data = (
         client().table("access_requests")

@@ -77,6 +77,38 @@ class _SessionRevoker:
 _admin_sessions = _SessionRevoker()
 
 
+class _ResetCodeStore:
+    """In-memory one-time reset codes: code -> {email, expires}."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._codes = {}
+
+    def put(self, code, email, ttl_seconds):
+        with self._lock:
+            self._prune_locked()
+            self._codes[code] = {"email": email, "expires": time.time() + ttl_seconds}
+
+    def pop(self, code):
+        with self._lock:
+            self._prune_locked()
+            entry = self._codes.pop(code, None)
+            if entry is None:
+                return None
+            if entry["expires"] < time.time():
+                return None
+            return entry
+
+    def _prune_locked(self):
+        now = time.time()
+        stale = [c for c, e in self._codes.items() if e["expires"] < now]
+        for c in stale:
+            self._codes.pop(c, None)
+
+
+_reset_codes = _ResetCodeStore()
+
+
 def _client_ip(request: Request):
     fwd = request.headers.get("x-forwarded-for", "")
     if fwd:
@@ -248,6 +280,24 @@ class GoogleBody(BaseModel):
     access_token: str
 
 
+class ForgotBody(BaseModel):
+    email: str
+
+
+class ResetBody(BaseModel):
+    token: str
+    password: str
+
+
+class ChangePasswordBody(BaseModel):
+    current: str
+    new: str
+
+
+class ResetCodeBody(BaseModel):
+    code: str
+
+
 GOOGLE_ONLY_HASH = "!google-only!"
 
 
@@ -353,6 +403,77 @@ def google_login(body: GoogleBody):
     return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
 
 
+def _make_reset_token(email):
+    return serializer.dumps({"sub": "password-reset", "email": email, "iat": time.time()})
+
+
+def _verify_reset_token(token):
+    try:
+        payload = serializer.loads(token)
+    except BadSignature:
+        raise HTTPException(status_code=400, detail="invalid reset link")
+    if payload.get("sub") != "password-reset" or not payload.get("email"):
+        raise HTTPException(status_code=400, detail="invalid reset link")
+    if payload.get("iat") is None or time.time() - payload["iat"] > config.PASSWORD_RESET_HOURS * 3600:
+        raise HTTPException(status_code=400, detail="reset link expired")
+    return payload["email"]
+
+
+@app.post("/api/forgot")
+def forgot_password(body: ForgotBody, request: Request):
+    if not _login_limiter.hit(f"forgot:{_client_ip(request)}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+    email = body.email.strip().lower()[:200]
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="valid email required")
+    user = db.get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="no account found for that email")
+    if user["password_hash"] == GOOGLE_ONLY_HASH:
+        raise HTTPException(status_code=400, detail="this email uses Google sign-in")
+    code = secrets.token_hex(4).upper()
+    _reset_codes.put(code, email, config.PASSWORD_RESET_HOURS * 3600)
+    return {
+        "code": code,
+        "expires_hours": config.PASSWORD_RESET_HOURS,
+        "hint": "Send this code to the site owner, who can give you a reset link.",
+    }
+
+
+@app.post("/api/reset")
+def reset_password(body: ResetBody, request: Request):
+    if not _login_limiter.hit(f"reset:{_client_ip(request)}"):
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+    email = _verify_reset_token(body.token)
+    if not _reset_codes.pop(body.token):
+        raise HTTPException(status_code=400, detail="reset link already used or expired")
+    password = body.password
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="password must be at least 6 characters")
+    if len(password) > 128:
+        raise HTTPException(status_code=400, detail="password too long")
+    user = db.get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="account not found")
+    db.update_user_password(user["id"], _hash_password(password))
+    return {"ok": True}
+
+
+@app.post("/api/change-password")
+def change_password(body: ChangePasswordBody, user: dict = Depends(require_user)):
+    stored = user.get("password_hash")
+    if stored == GOOGLE_ONLY_HASH:
+        raise HTTPException(status_code=400, detail="this account uses Google sign-in")
+    if not _verify_password(body.current, stored):
+        raise HTTPException(status_code=401, detail="current password incorrect")
+    if len(body.new) < 6:
+        raise HTTPException(status_code=400, detail="password must be at least 6 characters")
+    if len(body.new) > 128:
+        raise HTTPException(status_code=400, detail="password too long")
+    db.update_user_password(user["id"], _hash_password(body.new))
+    return {"ok": True}
+
+
 @app.get("/", response_class=FileResponse)
 def dashboard_page():
     return FileResponse(STATIC_DIR / "dashboard.html")
@@ -446,6 +567,15 @@ def viewer_page(token: str):
     return FileResponse(STATIC_DIR / "viewer.html")
 
 
+@app.get("/reset/{token}", response_class=FileResponse)
+def reset_page(token: str):
+    try:
+        serializer.loads(token)
+    except BadSignature:
+        raise HTTPException(status_code=404, detail="invalid reset link")
+    return FileResponse(STATIC_DIR / "reset.html")
+
+
 @app.post("/api/admin/login")
 def admin_login(response: Response, request: Request, password: str = Form(...)):
     if not _admin_login_limiter.hit(f"admin:{_client_ip(request)}"):
@@ -475,6 +605,23 @@ def admin_logout(response: Response, request: Request, admin_session: str = Cook
 @app.get("/api/admin/documents")
 def admin_documents(_: bool = Depends(require_admin)):
     return db.list_documents()
+
+
+@app.post("/api/admin/reset-link")
+def admin_reset_link(
+    body: ResetCodeBody,
+    _: bool = Depends(require_admin),
+    __: bool = Depends(require_safe_origin),
+):
+    entry = _reset_codes.pop(body.code.strip().upper())
+    if not entry:
+        raise HTTPException(status_code=400, detail="invalid or expired code")
+    token = _make_reset_token(entry["email"])
+    _reset_codes.put(token, entry["email"], config.PASSWORD_RESET_HOURS * 3600)
+    return {
+        "email": entry["email"],
+        "url": f"{config.APP_BASE_URL}/reset/{token}",
+    }
 
 
 @app.post("/api/admin/revoke/{doc_id}")

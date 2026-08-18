@@ -161,6 +161,14 @@
           </button>
         </div>
         <button id="btnLogin">Log in</button>
+        <div style="margin-top:6px;">
+          <a href="#" onclick="showForgot(); return false;" style="color:var(--muted); font-size:12px; text-decoration:underline;">Forgot password?</a>
+        </div>
+        <div id="forgotPane" style="display:none; margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+          <input type="email" id="forgotEmail" placeholder="Your account email" autocomplete="email">
+          <button id="btnForgot" type="button">Get a reset code</button>
+          <div style="margin-top:10px; color:var(--muted); font-size:12px; line-height:1.5;" id="forgotMsg"></div>
+        </div>
       </div>
       <div id="registerPane" style="display:none">
         <input type="text" id="regName" placeholder="Your name" autocomplete="name">
@@ -182,6 +190,15 @@
       <div class="acct">
         <span>Signed in as <span class="who" id="acctName"></span></span>
         <button onclick="logout()">Log out</button>
+      </div>
+      <div style="text-align:right; margin-bottom:10px;">
+        <a href="#" onclick="showChangePw(); return false;" style="color:var(--muted); font-size:12px; text-decoration:underline;">Change password</a>
+      </div>
+      <div id="changePwPane" style="display:none; margin-bottom:14px; border:1px solid var(--border); border-radius:10px; padding:12px;">
+        <input type="password" id="cpCurrent" placeholder="Current password" autocomplete="current-password">
+        <input type="password" id="cpNew" placeholder="New password (min 6 chars)" autocomplete="new-password">
+        <button id="btnChangePw" type="button">Save new password</button>
+        <div class="status" id="cpMsg"></div>
       </div>
       <div id="docs"></div>
     </section>
@@ -306,6 +323,66 @@ function logout() {
   stopDocsPolling();
   showView();
 }
+
+function showChangePw() {
+  const pane = document.getElementById('changePwPane');
+  pane.style.display = pane.style.display === 'none' ? '' : 'none';
+}
+
+document.getElementById('btnChangePw').onclick = async () => {
+  const msg = document.getElementById('cpMsg');
+  const current = document.getElementById('cpCurrent').value;
+  const newPw = document.getElementById('cpNew').value;
+  if (!current || !newPw) { msg.className = 'status bad'; msg.textContent = 'Fill in both fields.'; return; }
+  msg.className = 'status';
+  msg.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/change-password', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ current, new: newPw })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      msg.className = 'status bad';
+      msg.textContent = data.detail || 'Something went wrong.';
+      if (res.status === 401) { logout(); return; }
+      return;
+    }
+    msg.className = 'status';
+    msg.textContent = 'Password changed.';
+    document.getElementById('cpCurrent').value = '';
+    document.getElementById('cpNew').value = '';
+  } catch (e) {
+    msg.className = 'status bad';
+    msg.textContent = 'Network error. Try again.';
+  }
+};
+
+function showForgot() {
+  const pane = document.getElementById('forgotPane');
+  pane.style.display = pane.style.display === 'none' ? '' : 'none';
+}
+
+document.getElementById('btnForgot').onclick = async () => {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const msg = document.getElementById('forgotMsg');
+  if (!email) { msg.textContent = 'Enter your email.'; return; }
+  msg.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/forgot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { msg.textContent = data.detail || 'Something went wrong.'; return; }
+    msg.innerHTML = '<b>Your reset code:</b> <span style="font-size:18px; letter-spacing:2px; color:var(--accent);">' + data.code + '</span><br>' +
+      data.hint + '<br>Valid for ' + data.expires_hours + ' hours.';
+  } catch (e) {
+    msg.textContent = 'Network error. Try again.';
+  }
+};
 
 async function loadDocs(silent) {
   const el = document.getElementById('docs');
