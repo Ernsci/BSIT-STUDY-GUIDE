@@ -14,7 +14,6 @@ COLOR_GREEN = 0x57F287
 COLOR_RED = 0xED4245
 
 APP_NAME = "Documents for Nerds"
-APP_ICON = "https://bsit-study-guide.onrender.com/static/dashboard.html"
 
 
 def is_configured():
@@ -43,14 +42,18 @@ def _webhook_parts():
     return m.group(1), m.group(2)
 
 
-def _base_embed(title, color):
+def _base_embed(title, color, emoji=""):
     return {
-        "title": title,
+        "title": f"{emoji} {title}".strip(),
         "color": color,
         "author": {"name": APP_NAME},
         "footer": {"text": "Documents for Nerds · Approval System"},
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _ip_value(ip):
+    return f"`{ip}`" if ip else "Unknown"
 
 
 def _button_row(item):
@@ -68,35 +71,47 @@ def _button_row(item):
 
 def request_embed(item):
     kind = item.get("kind") or "view"
-    title = "New Download Request" if kind == "download" else "New Access Request"
-    embed = _base_embed(title, COLOR_BRAND)
-    embed["description"] = "Someone is waiting for access. Review the details below."
+    is_download = kind == "download"
+    emoji = "📥" if is_download else "🔔"
+    title = "New Download Request" if is_download else "New Access Request"
+    embed = _base_embed(title, COLOR_BRAND, emoji)
+    name = item["name"]
+    doc_title = item["title"]
+    embed["description"] = (
+        f"**{name}** is waiting for access to **{doc_title}**. "
+        f"Tap a button below to approve or decline."
+    )
     embed["fields"] = [
-        {"name": "Requester", "value": item["name"], "inline": True},
-        {"name": "Document", "value": item["title"], "inline": True},
-        {"name": "IP Address", "value": item["ip"] or "Unknown", "inline": True},
+        {"name": "👤 Requester", "value": name, "inline": True},
+        {"name": "📄 Document", "value": doc_title, "inline": True},
+        {"name": "🖥️ IP Address", "value": _ip_value(item.get("ip")), "inline": True},
+        {"name": "🧾 Request #", "value": f"`{item['request_id']}`", "inline": True},
     ]
     return embed
 
 
 def decision_embed(doc, req, action, decided_by, kind="view"):
     is_download = kind == "download"
-    if action == "approve":
+    approved = action == "approve"
+    emoji = "✅" if approved else "❌"
+    if approved:
         title = "Download Approved" if is_download else "Access Approved"
         color = COLOR_GREEN
-        mark = "Approve"
     else:
         title = "Download Declined" if is_download else "Access Declined"
         color = COLOR_RED
-        mark = "Decline"
-    embed = _base_embed(title, color)
-    embed["description"] = f"**{mark}** request #{req['id']}"
+    embed = _base_embed(title, color, emoji)
+    embed["description"] = (
+        f"**{req['visitor_name']}**'s request for **{doc['title']}** has been "
+        f"{'approved' if approved else 'declined'}."
+    )
     embed["fields"] = [
-        {"name": "Requester", "value": req["visitor_name"], "inline": True},
-        {"name": "Document", "value": doc["title"], "inline": True},
-        {"name": "IP Address", "value": req.get("ip") or "Unknown", "inline": True},
-        {"name": "Decided by", "value": decided_by, "inline": True},
+        {"name": "👤 Requester", "value": req["visitor_name"], "inline": True},
+        {"name": "📄 Document", "value": doc["title"], "inline": True},
+        {"name": "🖥️ IP Address", "value": _ip_value(req.get("ip")), "inline": True},
+        {"name": "🔎 Decided by", "value": decided_by, "inline": True},
     ]
+    embed["footer"] = {"text": f"Request #{req['id']} · Documents for Nerds"}
     return embed
 
 
@@ -124,14 +139,16 @@ def build_batch_embeds_and_components(reqs):
                 "request_id": r["id"],
             }))
         else:
-            mark = "Approved" if r["status"] == "approved" else "Declined"
-            color = COLOR_GREEN if r["status"] == "approved" else COLOR_RED
-            embed = _base_embed(f"Request #{r['id']} · {mark}", color)
+            approved = r["status"] == "approved"
+            mark = "Approved" if approved else "Declined"
+            color = COLOR_GREEN if approved else COLOR_RED
+            embed = _base_embed(f"Request #{r['id']} · {mark}", color, "✅" if approved else "❌")
+            embed["description"] = f"**{r['visitor_name']}**'s request for **{doc.get('title', 'unknown')}** was {mark.lower()}."
             embed["fields"] = [
-                {"name": "Requester", "value": r["visitor_name"], "inline": True},
-                {"name": "Document", "value": doc.get("title", "unknown"), "inline": True},
-                {"name": "IP Address", "value": r.get("ip") or "Unknown", "inline": True},
-                {"name": "Decided by", "value": r.get("decided_by") or "Unknown", "inline": True},
+                {"name": "👤 Requester", "value": r["visitor_name"], "inline": True},
+                {"name": "📄 Document", "value": doc.get("title", "unknown"), "inline": True},
+                {"name": "🖥️ IP Address", "value": _ip_value(r.get("ip")), "inline": True},
+                {"name": "🔎 Decided by", "value": r.get("decided_by") or "Unknown", "inline": True},
             ]
             embeds.append(embed)
     return embeds, components
