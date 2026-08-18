@@ -248,6 +248,9 @@ class GoogleBody(BaseModel):
     access_token: str
 
 
+GOOGLE_ONLY_HASH = "!google-only!"
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -291,7 +294,14 @@ def login(body: LoginBody, request: Request):
         raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
     email = body.email.strip().lower()
     user = db.get_user_by_email(email)
-    if not user or not _verify_password(body.password, user["password_hash"]):
+    if not user:
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    if user["password_hash"] == GOOGLE_ONLY_HASH:
+        raise HTTPException(
+            status_code=403,
+            detail="This email is linked to a Google account. Please log in with the Google button instead.",
+        )
+    if not _verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid email or password")
     _login_limiter.reset(f"login:{_client_ip(request)}")
     return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
@@ -339,7 +349,7 @@ def google_login(body: GoogleBody):
     if not user:
         if not info["name"]:
             raise HTTPException(status_code=400, detail="Google account has no name")
-        user = db.create_user(info["name"], info["email"], _hash_password("!supabase-oauth!"))
+        user = db.create_user(info["name"], info["email"], GOOGLE_ONLY_HASH)
     return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
 
 
