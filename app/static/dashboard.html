@@ -714,10 +714,10 @@ function renderDoc(el, d) {
   let dlHtml = '';
   if (dl.status === 'approved') {
     dlHtml = `<div class="dlrow">Download: <a href="#" onclick="downloadPdf('${dl.url}'); return false;">PDF</a></div>`;
-  } else if (open) {
-    dlHtml = `<div class="dlrow"><button class="act" onclick="downloadNow('${d.token}')">Download PDF</button></div>`;
   } else if (dl.status === 'pending') {
     dlHtml = `<div class="dlrow"><span class="badge pending">Download waiting…</span></div>`;
+  } else if (open) {
+    dlHtml = `<div class="dlrow"><button class="act" onclick="downloadNow('${d.token}')">Download PDF</button></div>`;
   } else {
     dlHtml = `<div class="dlrow"><button class="act" onclick="requestDownload('${d.token}')">Request download</button></div>`;
   }
@@ -725,7 +725,7 @@ function renderDoc(el, d) {
   const badge = open ? '<span class="badge open">Open</span>' : statusBadge(v.status);
   row.innerHTML = `
     <div>
-      <div class="title">${d.title}</div>
+      <div class="title">${escapeHtml(d.title)}</div>
       <div class="meta">${d.page_count} pages · ${badge}</div>
       ${dlHtml}
     </div>

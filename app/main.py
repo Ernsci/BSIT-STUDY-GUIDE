@@ -975,7 +975,10 @@ def _finalize_message(edit_spec, req, doc, action, decided_by, kind="view"):
             return
     except Exception:
         pass
-    discord.edit_message(edit_spec, [discord.decision_embed(doc, req, action, decided_by, kind=kind)], [])
+    try:
+        discord.edit_message(edit_spec, [discord.decision_embed(doc, req, action, decided_by, kind=kind)], [])
+    except Exception as exc:
+        print(f"DISCORD EDIT FAILED: {exc}")
 
 
 def _process_decline(req, doc, edit_spec, decided_by, kind="view"):

@@ -455,8 +455,13 @@ async function resumeIfApproved() {
     }
     if (isOpen) {
       statusEl.textContent = 'Opening document…';
-      btnEl.disabled = true;
-      openDocument();
+      if (s.pending_view) {
+        pollTimer = setInterval(() => poll(s.pending_view), 4000);
+        poll(s.pending_view);
+      } else {
+        btnEl.disabled = true;
+        openDocument();
+      }
       return;
     }
     btnEl.textContent = 'Request access';

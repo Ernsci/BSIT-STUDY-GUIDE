@@ -314,7 +314,7 @@ async function loadDocs() {
     const link = `<a href="/v/${d.token}" target="_blank">/v/${d.token}</a>`;
     row.innerHTML = `
       <div>
-        <div class="title">${d.title}</div>
+        <div class="title">${escapeHtml(d.title)}</div>
         <div class="meta">${d.page_count} pages · ${link}</div>
         <div class="mode">
           <label class="switch" title="Toggle open access (no request needed)">
@@ -337,6 +337,10 @@ async function loadDocs() {
       </div>`;
     el.appendChild(row);
   }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function toggleActions(id) {
