@@ -8,7 +8,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --bg: #0a0c12;
-    --panel: rgba(22, 26, 36, .85);
+    --panel: rgba(22, 26, 36, .96);
     --panel2: #1e2330;
     --border: rgba(255,255,255,.08);
     --text: #eef1f7;
@@ -27,16 +27,12 @@
   }
 
   .bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: radial-gradient(55% 45% at 85% -5%, rgba(91,140,255,.2), transparent 60%), radial-gradient(45% 40% at 5% 0%, rgba(139,92,255,.16), transparent 60%), var(--bg); }
-  .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .45; animation: drift 20s ease-in-out infinite; }
-  .orb.o1 { width: 380px; height: 380px; background: rgba(91,140,255,.35); top: -120px; left: -80px; }
-  .orb.o2 { width: 340px; height: 340px; background: rgba(47,217,195,.25); bottom: -120px; right: -80px; animation-delay: -10s; }
-  @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px, 24px) scale(1.07); } }
   @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes popIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
   @keyframes shimmer { 100% { transform: translateX(100%); } }
   .anim { animation: fadeUp .6s cubic-bezier(.22,.68,.36,1) both; }
 
-  .nav { position: sticky; top: 0; z-index: 20; background: rgba(10,12,18,.55); backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); border-bottom: 1px solid var(--border); }
+  .nav { position: sticky; top: 0; z-index: 20; background: rgba(10,12,18,.95); border-bottom: 1px solid var(--border); }
   .nav-inner { max-width: 980px; margin: 0 auto; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-size: 18px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; gap: 10px; }
   .logo .mark { width: 32px; height: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 6px 18px rgba(91,140,255,.4); }
@@ -49,7 +45,7 @@
   }
   .shell { margin: auto; width: 100%; }
 
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
   .panel + .panel { margin-top: 12px; }
   .panel h2 { font-size: 15px; font-weight: 800; letter-spacing: .3px; margin-bottom: 12px; }
   .panel h2 .sub { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-left: 8px; }
@@ -97,7 +93,7 @@
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
   .stat {
     background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px;
-    backdrop-filter: blur(14px); transition: transform .2s, border-color .2s; animation: fadeUp .5s ease both;
+    transition: transform .2s, border-color .2s; animation: fadeUp .5s ease both;
   }
   .stat:hover { transform: translateY(-3px); border-color: rgba(91,140,255,.4); }
   .stat .num { font-size: 28px; font-weight: 800; line-height: 1.1; }
@@ -140,10 +136,7 @@
 </style>
 </head>
 <body>
-  <div class="bg" aria-hidden="true">
-    <div class="orb o1"></div>
-    <div class="orb o2"></div>
-  </div>
+  <div class="bg" aria-hidden="true"></div>
 
   <header class="nav">
     <div class="nav-inner">
