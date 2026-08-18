@@ -244,6 +244,10 @@ class LoginBody(BaseModel):
     password: str
 
 
+class GoogleBody(BaseModel):
+    credential: str
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -255,6 +259,7 @@ def site_info():
         "site_name": "Documents for Nerds",
         "facebook_url": config.OWNER_FACEBOOK_URL,
         "owner_email": config.OWNER_EMAIL,
+        "google_client_id": config.GOOGLE_CLIENT_ID or None,
     }
 
 
@@ -294,6 +299,38 @@ def login(body: LoginBody, request: Request):
 @app.get("/api/me")
 def me(user: dict = Depends(require_user)):
     return {"id": user["id"], "name": user["name"], "email": user["email"]}
+
+
+def _google_userinfo(credential):
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
+    if not config.GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Google sign-in is not enabled.")
+    try:
+        info = id_token.verify_oauth2_token(
+            credential, google_requests.Request(), config.GOOGLE_CLIENT_ID
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid Google token")
+    email = (info.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=401, detail="Google account has no email")
+    return {
+        "email": email,
+        "name": (info.get("name") or "").strip()[:120],
+    }
+
+
+@app.post("/api/google")
+def google_login(body: GoogleBody):
+    info = _google_userinfo(body.credential)
+    user = db.get_user_by_email(info["email"])
+    if not user:
+        if not info["name"]:
+            raise HTTPException(status_code=400, detail="Google account has no name")
+        user = db.create_user(info["name"], info["email"], _hash_password("!google-oauth!"))
+    return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
 
 
 @app.get("/", response_class=FileResponse)

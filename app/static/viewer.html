@@ -16,6 +16,8 @@
   button:disabled { background: #9aa5b1; cursor: not-allowed; }
   .status { margin-top: 16px; color: #52606d; font-size: 14px; }
   .denied { margin-top: 16px; color: #c0392b; font-weight: 600; }
+  .gsep { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; color: #8b93a3; font-size: 12px; }
+  .gsep::before, .gsep::after { content: ''; flex: 1; height: 1px; background: #d3dce6; }
   .tabs { display: flex; margin-bottom: 16px; }
   .tab { flex: 1; padding: 10px; background: #eef1f4; color: #52606d; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
   .tab.active { background: #1a73e8; color: #fff; }
@@ -74,6 +76,9 @@
         <button id="btnRegister">Create account</button>
       </div>
 
+      <div class="gsep"><span>or continue with</span></div>
+      <div id="googleBtn" style="display:flex;justify-content:center;margin:4px 0 12px"></div>
+
       <div class="status" id="authStatus"></div>
     </div>
 
@@ -123,6 +128,51 @@ function setAuth(auth) { localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); }
 function authHeaders() {
   const auth = getAuth();
   return { 'Content-Type': 'application/json', ...(auth ? { Authorization: 'Bearer ' + auth.token } : {}) };
+}
+
+fetch('/api/site').then(r => r.json()).then(s => {
+  if (s.google_client_id) initGoogle(s.google_client_id);
+}).catch(() => {});
+
+let googleReady = false;
+function initGoogle(clientId) {
+  if (googleReady) return;
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.async = true;
+  script.defer = true;
+  script.onload = () => {
+    googleReady = true;
+    google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+    });
+    google.accounts.id.renderButton(document.getElementById('googleBtn'), {
+      theme: 'outline', size: 'large', width: 320,
+    });
+  };
+  document.head.appendChild(script);
+}
+
+async function handleGoogleCredential(resp) {
+  authStatusEl.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: resp.credential })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      authStatusEl.textContent = err.detail || 'Google sign-in failed.';
+      return;
+    }
+    const data = await res.json();
+    setAuth({ token: data.token, name: data.name });
+    showAuthUI();
+  } catch (e) {
+    authStatusEl.textContent = 'Google sign-in failed.';
+  }
 }
 
 function switchTab(which) {

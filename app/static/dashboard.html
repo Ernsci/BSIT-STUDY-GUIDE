@@ -67,6 +67,9 @@
   button:hover { opacity: .9; }
   button:disabled { opacity: .5; cursor: not-allowed; }
   .status { margin-top: 10px; color: var(--muted); font-size: 13px; }
+
+  .gsep { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; color: var(--muted); font-size: 12px; }
+  .gsep::before, .gsep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .status.bad { color: var(--bad); }
 
   /* Docs */
@@ -167,6 +170,8 @@
         </div>
         <button id="btnRegister">Create account</button>
       </div>
+      <div class="gsep"><span>or continue with</span></div>
+      <div id="googleBtn" style="display:flex;justify-content:center;margin:4px 0 12px"></div>
       <div class="status" id="authStatus"></div>
     </section>
 
@@ -215,7 +220,54 @@ fetch('/api/site').then(r => r.json()).then(s => {
   document.getElementById('navFb').href = s.facebook_url;
   document.getElementById('contactFb').href = s.facebook_url;
   document.getElementById('contactEmail').href = 'mailto:' + s.owner_email;
+  if (s.google_client_id) initGoogle(s.google_client_id);
 }).catch(() => {});
+
+let googleReady = false;
+function initGoogle(clientId) {
+  const existing = document.querySelector('#googleBtn');
+  if (!existing || googleReady) return;
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.async = true;
+  script.defer = true;
+  script.onload = () => {
+    googleReady = true;
+    google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+    });
+    google.accounts.id.renderButton(document.getElementById('googleBtn'), {
+      theme: 'outline', size: 'large', width: 320,
+    });
+  };
+  document.head.appendChild(script);
+}
+
+async function handleGoogleCredential(resp) {
+  const statusEl = document.getElementById('authStatus');
+  statusEl.className = 'status';
+  statusEl.textContent = 'Working...';
+  try {
+    const res = await fetch('/api/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: resp.credential })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.className = 'status bad';
+      statusEl.textContent = err.detail || 'Google sign-in failed.';
+      return;
+    }
+    const data = await res.json();
+    setAuth({ token: data.token, name: data.name });
+    showView();
+  } catch (e) {
+    statusEl.className = 'status bad';
+    statusEl.textContent = 'Google sign-in failed.';
+  }
+}
 
 function togglePw(inputId, btn) {
   const input = document.getElementById(inputId);
