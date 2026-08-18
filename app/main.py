@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import BaseModel
@@ -56,25 +56,31 @@ class _SessionRevoker:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._revoked = set()
+        self._revoked = {}
 
     def revoke(self, token):
         with self._lock:
-            self._revoked.add(token)
+            self._revoked[token] = time.time()
 
     def is_revoked(self, token):
         with self._lock:
-            if token in self._revoked:
-                return True
-            if len(self._revoked) > 500:
-                self._revoked.clear()
-            return False
+            self._prune()
+            return token in self._revoked
+
+    def _prune(self):
+        cutoff = time.time() - config.ADMIN_SESSION_HOURS * 3600
+        stale = [t for t, ts in self._revoked.items() if ts < cutoff]
+        for t in stale:
+            self._revoked.pop(t, None)
 
 
 _admin_sessions = _SessionRevoker()
 
 
 def _client_ip(request: Request):
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -130,10 +136,12 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 @app.exception_handler(HTTPException)
 def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == 401 and request.url.path.startswith("/v/"):
-        return HTMLResponse(
-            (STATIC_DIR / "login-required.html").read_text(encoding="utf-8"),
-            status_code=401,
-        )
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept and "application/json" not in accept:
+            parts = request.url.path.split("/")
+            if len(parts) >= 3 and parts[1] == "v" and parts[2]:
+                return RedirectResponse(url=f"/v/{parts[2]}", status_code=302)
+            return RedirectResponse(url="/", status_code=302)
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
@@ -454,10 +462,10 @@ def new_request(body: RequestBody, request: Request, user: dict = Depends(requir
     if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404, detail="link not found or revoked")
     name = user["name"]
-    client_ip = request.client.host if request.client else None
+    client_ip = _client_ip(request)
     _enforce_antispam(user["id"])
     req = db.create_access_request(doc["id"], name, ip=client_ip, user_id=user["id"])
-    if config.DISCORD_WEBHOOK_URL:
+    if discord.is_configured():
         _enqueue_notification("view", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
@@ -468,10 +476,10 @@ def new_download_request(body: RequestBody, request: Request, user: dict = Depen
     if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404, detail="link not found or revoked")
     name = user["name"]
-    client_ip = request.client.host if request.client else None
+    client_ip = _client_ip(request)
     _enforce_antispam(user["id"])
     req = db.create_access_request(doc["id"], name, ip=client_ip, kind="download", user_id=user["id"])
-    if config.DISCORD_WEBHOOK_URL:
+    if discord.is_configured():
         _enqueue_notification("download", doc["title"], name, req["id"], client_ip or "")
     return {"request_id": req["id"]}
 
@@ -495,7 +503,7 @@ def download_status(token: str, request_id: int, user: dict = Depends(require_us
 @app.get("/v/{token}/download/{request_id}")
 def serve_download(token: str, request_id: int, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
-    if not doc:
+    if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"] or req["status"] != "approved" or req.get("kind") != "download":
@@ -525,10 +533,12 @@ def my_documents(user: dict = Depends(require_user)):
     by_doc = {}
     for r in requests:
         entry = by_doc.setdefault(r["document_id"], {"view": None, "download": None})
-        if r["kind"] == "view" and entry["view"] is None:
-            entry["view"] = r
-        elif r["kind"] == "download" and entry["download"] is None:
-            entry["download"] = r
+        if r["kind"] == "view":
+            if entry["view"] is None or (entry["view"]["status"] != "approved" and r["status"] == "approved"):
+                entry["view"] = r
+        elif r["kind"] == "download":
+            if entry["download"] is None or (entry["download"]["status"] != "approved" and r["status"] == "approved"):
+                entry["download"] = r
     result = []
     for d in docs:
         r = by_doc.get(d["id"], {"view": None, "download": None})
@@ -590,7 +600,7 @@ def request_status(token: str, request_id: int, user: dict = Depends(require_use
 @app.get("/v/{token}/page/{request_id}/{page_number}")
 def serve_page(token: str, request_id: int, page_number: int, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
-    if not doc:
+    if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"] or req["status"] != "approved":
@@ -611,7 +621,7 @@ def serve_page(token: str, request_id: int, page_number: int, request: Request, 
 @app.get("/v/{token}/pdf/{request_id}")
 def serve_pdf(token: str, request_id: int, request: Request, user: dict = Depends(require_user)):
     doc = db.get_document_by_token(token)
-    if not doc:
+    if not doc or doc["status"] != "active":
         raise HTTPException(status_code=404)
     req = db.get_access_request(request_id)
     if not req or req["document_id"] != doc["id"] or req["status"] != "approved":
@@ -641,6 +651,7 @@ def _process_approval(req, doc, edit_spec, decided_by):
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
         _finalize_message(edit_spec, req, doc, "approve", decided_by)
     except Exception as exc:
+        print(f"APPROVAL FAILED (req {req['id']}): {type(exc).__name__}: {exc}")
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
         _finalize_message(edit_spec, req, doc, "decline", decided_by)
 
@@ -657,6 +668,7 @@ def _process_download_approval(req, doc, edit_spec, decided_by):
         db.set_request_status(req["id"], "approved", pages_path, decided_by=decided_by)
         _finalize_message(edit_spec, req, doc, "approve", decided_by, kind="download")
     except Exception as exc:
+        print(f"DOWNLOAD APPROVAL FAILED (req {req['id']}): {type(exc).__name__}: {exc}")
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
         _finalize_message(edit_spec, req, doc, "decline", decided_by, kind="download")
 
@@ -690,8 +702,8 @@ def _process_decline(req, doc, edit_spec, decided_by, kind="view"):
     try:
         db.set_request_status(req["id"], "declined", decided_by=decided_by)
         _finalize_message(edit_spec, req, doc, "decline", decided_by, kind=kind)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"DECLINE FAILED (req {req['id']}): {type(exc).__name__}: {exc}")
 
 
 def _handle_discord_component(interaction, edit_spec):

@@ -17,6 +17,13 @@ APP_NAME = "Documents for Nerds"
 APP_ICON = "https://approval-docs.onrender.com/static/dashboard.html"
 
 
+def is_configured():
+    if config.DISCORD_BOT_TOKEN and config.DISCORD_CHANNEL_ID:
+        return True
+    webhook_id, _ = _webhook_parts()
+    return bool(webhook_id)
+
+
 def verify_signature(raw_body, signature, timestamp):
     """Verify the Ed25519 signature Discord attaches to interaction POSTs."""
     if not config.DISCORD_PUBLIC_KEY or not signature or not timestamp:
