@@ -245,7 +245,7 @@ class LoginBody(BaseModel):
 
 
 class GoogleBody(BaseModel):
-    credential: str
+    access_token: str
 
 
 @app.get("/health")
@@ -259,7 +259,8 @@ def site_info():
         "site_name": "Documents for Nerds",
         "facebook_url": config.OWNER_FACEBOOK_URL,
         "owner_email": config.OWNER_EMAIL,
-        "google_client_id": config.GOOGLE_CLIENT_ID or None,
+        "supabase_url": config.SUPABASE_URL or None,
+        "supabase_anon_key": config.SUPABASE_ANON_KEY or None,
     }
 
 
@@ -301,35 +302,44 @@ def me(user: dict = Depends(require_user)):
     return {"id": user["id"], "name": user["name"], "email": user["email"]}
 
 
-def _google_userinfo(credential):
-    from google.auth.transport import requests as google_requests
-    from google.oauth2 import id_token
+def _supabase_userinfo(access_token):
+    """Validate a Supabase Auth access token by calling the /auth/v1/user endpoint."""
+    import requests
 
-    if not config.GOOGLE_CLIENT_ID:
+    if not config.SUPABASE_URL or not config.SUPABASE_ANON_KEY:
         raise HTTPException(status_code=503, detail="Google sign-in is not enabled.")
     try:
-        info = id_token.verify_oauth2_token(
-            credential, google_requests.Request(), config.GOOGLE_CLIENT_ID
+        resp = requests.get(
+            f"{config.SUPABASE_URL}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "apikey": config.SUPABASE_ANON_KEY,
+            },
+            timeout=10,
         )
     except Exception:
-        raise HTTPException(status_code=401, detail="invalid Google token")
+        raise HTTPException(status_code=503, detail="Could not reach the auth provider.")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="invalid or expired Google session")
+    info = resp.json()
     email = (info.get("email") or "").strip().lower()
     if not email:
         raise HTTPException(status_code=401, detail="Google account has no email")
+    name = (info.get("user_metadata") or {}).get("full_name") or email.split("@")[0]
     return {
         "email": email,
-        "name": (info.get("name") or "").strip()[:120],
+        "name": str(name).strip()[:120],
     }
 
 
 @app.post("/api/google")
 def google_login(body: GoogleBody):
-    info = _google_userinfo(body.credential)
+    info = _supabase_userinfo(body.access_token)
     user = db.get_user_by_email(info["email"])
     if not user:
         if not info["name"]:
             raise HTTPException(status_code=400, detail="Google account has no name")
-        user = db.create_user(info["name"], info["email"], _hash_password("!google-oauth!"))
+        user = db.create_user(info["name"], info["email"], _hash_password("!supabase-oauth!"))
     return {"token": _user_token(user["id"]), "name": user["name"], "email": user["email"]}
 
 
