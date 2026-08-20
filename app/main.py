@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import BaseModel
 
-from . import config, db, discord, renderer, storage
+from . import config, db, discord, discord_presence, renderer, storage
 
 STATIC_DIR = Path(__file__).parent / "static"
 serializer = URLSafeSerializer(config.ADMIN_SECRET)
@@ -1066,3 +1066,4 @@ def startup():
         storage.ensure_buckets()
     except Exception:
         pass
+    discord_presence.start()
